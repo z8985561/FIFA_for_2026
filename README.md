@@ -63,6 +63,7 @@ tests/
 python -m pip list
 python -m src.data_pipeline
 python -m src.baseline_model
+python -m src.postgres_sync
 python -m pytest
 python -m ruff check .
 python -m jupyter lab
@@ -84,6 +85,7 @@ python -m src.data_pipeline
 ```powershell
 .venv\Scripts\Activate.ps1
 python -m src.baseline_model
+python -m src.postgres_sync
 ```
 
 Outputs are written to:
@@ -91,3 +93,14 @@ Outputs are written to:
 - `data/raw/`
 - `data/processed/`
 - `reports/`
+
+## Postgres Sync
+
+With the Docker database running, sync processed data into Postgres:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.postgres_sync
+```
+
+Default connection settings are read from `.env`.
