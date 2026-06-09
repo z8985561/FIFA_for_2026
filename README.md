@@ -71,6 +71,8 @@ python -m src.postgres_queries prediction-query --team Brazil --limit 5
 python -m src.postgres_queries group-overview --group-name "Group C"
 python -m src.postgres_queries group-strength --group-name "Group C"
 python -m src.postgres_queries prediction-extremes --mode balanced --limit 8
+python -m src.research_report team --team Argentina
+python -m src.research_report group --group-name "Group C"
 python -m pytest
 python -m ruff check .
 python -m jupyter lab
@@ -140,4 +142,21 @@ python -m src.postgres_queries recent-form --team Brazil --limit 8
 python -m src.postgres_queries team-vs-field --team Argentina
 python -m src.postgres_queries group-strength --group-name "Group C"
 python -m src.postgres_queries prediction-extremes --mode lopsided --stage "Group Stage" --limit 6
+python -m src.research_report team --team Argentina --output reports/team_report_argentina.md
+python -m src.research_report group --group-name "Group C" --output reports/group_report_group_c.md
 ```
+
+## Research Report CLI
+
+Generate reusable Markdown reports on top of the Postgres research queries:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.research_report team --team Argentina
+python -m src.research_report group --group-name "Group C"
+```
+
+Default outputs:
+
+- `reports/team_report_<team>.md`
+- `reports/group_report_<group>.md`
