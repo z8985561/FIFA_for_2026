@@ -73,6 +73,7 @@ python -m src.postgres_queries group-strength --group-name "Group C"
 python -m src.postgres_queries prediction-extremes --mode balanced --limit 8
 python -m src.research_report team --team Argentina
 python -m src.research_report group --group-name "Group C"
+python -m src.research_report world-cup-pack
 python -m pytest
 python -m ruff check .
 python -m jupyter lab
@@ -144,6 +145,7 @@ python -m src.postgres_queries group-strength --group-name "Group C"
 python -m src.postgres_queries prediction-extremes --mode lopsided --stage "Group Stage" --limit 6
 python -m src.research_report team --team Argentina --output reports/team_report_argentina.md
 python -m src.research_report group --group-name "Group C" --output reports/group_report_group_c.md
+python -m src.research_report world-cup-pack --output-dir reports/world_cup_2026_pack
 ```
 
 ## Research Report CLI
@@ -160,3 +162,17 @@ Default outputs:
 
 - `reports/team_report_<team>.md`
 - `reports/group_report_<group>.md`
+
+Batch research pack:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.research_report world-cup-pack
+python -m src.research_report world-cup-pack --include-team-reports
+```
+
+Default pack output:
+
+- `reports/world_cup_2026_pack/index.md`
+- `reports/world_cup_2026_pack/groups/`
+- `reports/world_cup_2026_pack/teams/` when `--include-team-reports` is enabled

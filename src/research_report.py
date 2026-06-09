@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .postgres_queries import (
+    qualified_name,
     query_group_overview,
     query_group_strength,
     query_prediction_extremes,
@@ -14,7 +15,9 @@ from .postgres_queries import (
     query_recent_form,
     query_team_summary,
     query_team_vs_field,
+    run_query,
 )
+from .postgres_views import load_postgres_view_config
 from .project_paths import REPORTS_DIR
 
 
@@ -52,9 +55,17 @@ def default_group_report_path(group_name: str) -> Path:
     return REPORTS_DIR / f"group_report_{slugify(group_name)}.md"
 
 
+def default_world_cup_pack_dir() -> Path:
+    return REPORTS_DIR / "world_cup_2026_pack"
+
+
 def write_report(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def current_schema() -> str:
+    return load_postgres_view_config().schema
 
 
 def build_team_report(team: str, fixture_limit: int = 8, form_limit: int = 8) -> str:
@@ -151,6 +162,111 @@ def build_group_report(group_name: str, overview_limit: int = 12, extremes_limit
     return "\n".join(sections).strip() + "\n"
 
 
+def list_group_names() -> list[str]:
+    schema = current_schema()
+    sql = f"""
+        SELECT DISTINCT group_name
+        FROM {qualified_name(schema, "fixtures_2026")}
+        WHERE group_name IS NOT NULL
+        ORDER BY group_name
+    """
+    _, rows = run_query(sql)
+    return [str(row[0]) for row in rows]
+
+
+def list_world_cup_teams() -> list[str]:
+    schema = current_schema()
+    sql = f"""
+        SELECT team_name
+        FROM (
+            SELECT home_team AS team_name
+            FROM {qualified_name(schema, "fixtures_2026")}
+            WHERE home_team <> 'TBD'
+            UNION
+            SELECT away_team AS team_name
+            FROM {qualified_name(schema, "fixtures_2026")}
+            WHERE away_team <> 'TBD'
+        ) AS world_cup_teams
+        ORDER BY team_name
+    """
+    _, rows = run_query(sql)
+    return [str(row[0]) for row in rows]
+
+
+def build_pack_index(
+    generated_at: str,
+    group_files: list[tuple[str, Path]],
+    team_files: list[tuple[str, Path]],
+) -> str:
+    sections = [
+        "# World Cup 2026 Research Pack\n",
+        f"Generated at: {generated_at}\n",
+        f"Groups included: {len(group_files)}\n",
+        f"Teams included: {len(team_files)}\n",
+        "## Group Reports\n",
+    ]
+
+    if group_files:
+        sections.extend(f"- [{group_name}]({path.as_posix()})" for group_name, path in group_files)
+    else:
+        sections.append("No group reports generated.")
+
+    sections.append("\n## Team Reports\n")
+    if team_files:
+        sections.extend(f"- [{team_name}]({path.as_posix()})" for team_name, path in team_files)
+    else:
+        sections.append("No team reports generated.")
+
+    return "\n".join(sections).strip() + "\n"
+
+
+def generate_world_cup_pack(
+    output_dir: Path,
+    include_team_reports: bool,
+    fixture_limit: int,
+    form_limit: int,
+    overview_limit: int,
+    extremes_limit: int,
+) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    groups_dir = output_dir / "groups"
+    teams_dir = output_dir / "teams"
+    groups_dir.mkdir(parents=True, exist_ok=True)
+
+    group_files: list[tuple[str, Path]] = []
+    for group_name in list_group_names():
+        group_path = groups_dir / f"{slugify(group_name)}.md"
+        write_report(
+            group_path,
+            build_group_report(
+                group_name=group_name,
+                overview_limit=overview_limit,
+                extremes_limit=extremes_limit,
+            ),
+        )
+        group_files.append((group_name, Path("groups") / group_path.name))
+
+    team_files: list[tuple[str, Path]] = []
+    if include_team_reports:
+        teams_dir.mkdir(parents=True, exist_ok=True)
+        for team_name in list_world_cup_teams():
+            team_path = teams_dir / f"{slugify(team_name)}.md"
+            write_report(
+                team_path,
+                build_team_report(
+                    team=team_name,
+                    fixture_limit=fixture_limit,
+                    form_limit=form_limit,
+                ),
+            )
+            team_files.append((team_name, Path("teams") / team_path.name))
+
+    generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
+    index_path = output_dir / "index.md"
+    write_report(index_path, build_pack_index(generated_at, group_files, team_files))
+    return index_path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate Markdown research reports.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -166,6 +282,17 @@ def build_parser() -> argparse.ArgumentParser:
     group_parser.add_argument("--overview-limit", type=int, default=12)
     group_parser.add_argument("--extremes-limit", type=int, default=6)
     group_parser.add_argument("--output")
+
+    pack_parser = subparsers.add_parser(
+        "world-cup-pack",
+        help="Generate a batch World Cup research pack.",
+    )
+    pack_parser.add_argument("--output-dir")
+    pack_parser.add_argument("--include-team-reports", action="store_true")
+    pack_parser.add_argument("--fixture-limit", type=int, default=8)
+    pack_parser.add_argument("--form-limit", type=int, default=8)
+    pack_parser.add_argument("--overview-limit", type=int, default=12)
+    pack_parser.add_argument("--extremes-limit", type=int, default=6)
 
     return parser
 
@@ -190,6 +317,18 @@ def main() -> None:
             overview_limit=args.overview_limit,
             extremes_limit=args.extremes_limit,
         )
+    elif args.command == "world-cup-pack":
+        output_dir = Path(args.output_dir) if args.output_dir else default_world_cup_pack_dir()
+        index_path = generate_world_cup_pack(
+            output_dir=output_dir,
+            include_team_reports=args.include_team_reports,
+            fixture_limit=args.fixture_limit,
+            form_limit=args.form_limit,
+            overview_limit=args.overview_limit,
+            extremes_limit=args.extremes_limit,
+        )
+        print(f"wrote: {index_path}")
+        return
     else:
         raise ValueError(f"Unknown command: {args.command}")
 

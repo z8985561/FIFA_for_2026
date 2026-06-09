@@ -1,7 +1,9 @@
 from src.research_report import (
+    build_pack_index,
     build_parser,
     default_group_report_path,
     default_team_report_path,
+    default_world_cup_pack_dir,
     markdown_table,
     slugify,
 )
@@ -35,6 +37,24 @@ def test_default_group_report_path_uses_reports_directory() -> None:
     assert path.name == "group_report_group_c.md"
 
 
+def test_default_world_cup_pack_dir_uses_reports_directory() -> None:
+    path = default_world_cup_pack_dir()
+
+    assert path.name == "world_cup_2026_pack"
+
+
+def test_build_pack_index_renders_navigation_sections() -> None:
+    index = build_pack_index(
+        "2026-06-09 15:00:00 +0800",
+        [("Group C", default_world_cup_pack_dir() / "groups/group_c.md")],
+        [("Argentina", default_world_cup_pack_dir() / "teams/argentina.md")],
+    )
+
+    assert "# World Cup 2026 Research Pack" in index
+    assert "[Group C]" in index
+    assert "[Argentina]" in index
+
+
 def test_parser_accepts_team_report_command() -> None:
     parser = build_parser()
     args = parser.parse_args(
@@ -57,3 +77,22 @@ def test_parser_accepts_group_report_command() -> None:
     assert args.group_name == "Group C"
     assert args.overview_limit == 8
     assert args.extremes_limit == 4
+
+
+def test_parser_accepts_world_cup_pack_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "world-cup-pack",
+            "--include-team-reports",
+            "--fixture-limit",
+            "5",
+            "--form-limit",
+            "6",
+        ]
+    )
+
+    assert args.command == "world-cup-pack"
+    assert args.include_team_reports is True
+    assert args.fixture_limit == 5
+    assert args.form_limit == 6
