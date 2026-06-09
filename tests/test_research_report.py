@@ -60,9 +60,21 @@ def test_build_pack_index_renders_navigation_sections() -> None:
             ["match_no", "home_team", "away_team"],
             [(16, "Brazil", "Haiti")],
         ),
+        [
+            (
+                "Group Strength Landscape",
+                default_world_cup_pack_dir() / "charts/group_strength.png",
+            ),
+            (
+                "Group Stage Prediction Confidence Distribution",
+                default_world_cup_pack_dir() / "charts/confidence_distribution.png",
+            ),
+        ],
     )
 
     assert "# World Cup 2026 Research Pack" in index
+    assert "## Visual Dashboards" in index
+    assert "![Group Strength Landscape]" in index
     assert "## Group Strength Summary" in index
     assert "[Group C]" in index
     assert "[Argentina]" in index

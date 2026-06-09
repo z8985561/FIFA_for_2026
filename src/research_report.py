@@ -6,6 +6,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+
 from .postgres_queries import (
     qualified_name,
     query_group_overview,
@@ -45,6 +51,14 @@ def render_section(
     if not rows:
         return f"## {title}\n\n{empty_message}\n"
     return f"## {title}\n\n{markdown_table(columns, rows)}\n"
+
+
+def render_chart_section(title: str, chart_paths: list[tuple[str, Path]]) -> str:
+    lines = [f"## {title}\n"]
+    for caption, path in chart_paths:
+        lines.append(f"### {caption}\n")
+        lines.append(f"![{caption}]({path.as_posix()})\n")
+    return "\n".join(lines).strip() + "\n"
 
 
 def default_team_report_path(team: str) -> Path:
@@ -223,6 +237,135 @@ def query_group_strength_rollup() -> tuple[list[str], list[tuple[Any, ...]]]:
     return run_query(sql)
 
 
+def query_prediction_confidence_distribution(
+    stage: str | None,
+) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = current_schema()
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if stage:
+        clauses.append("stage = %s")
+        params.append(stage)
+
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = f"""
+        WITH prediction_scores AS (
+            SELECT
+                match_no,
+                stage,
+                group_name,
+                home_team,
+                away_team,
+                GREATEST(
+                    home_win_probability,
+                    draw_probability,
+                    away_win_probability
+                ) AS top_probability,
+                (
+                    home_win_probability
+                    + draw_probability
+                    + away_win_probability
+                    - GREATEST(
+                        home_win_probability,
+                        draw_probability,
+                        away_win_probability
+                    )
+                    - LEAST(
+                        home_win_probability,
+                        draw_probability,
+                        away_win_probability
+                    )
+                ) AS middle_probability
+            FROM {qualified_name(schema, "baseline_prediction_summary")}
+            {where_clause}
+        )
+        SELECT
+            match_no,
+            stage,
+            group_name,
+            home_team,
+            away_team,
+            ROUND((top_probability - middle_probability)::numeric, 4) AS confidence_gap
+        FROM prediction_scores
+        ORDER BY confidence_gap
+    """
+    return run_query(sql, tuple(params))
+
+
+def plot_group_strength_chart(
+    path: Path,
+    columns: list[str],
+    rows: list[tuple[Any, ...]],
+) -> None:
+    if not rows:
+        return
+
+    group_idx = columns.index("group_name")
+    avg_idx = columns.index("avg_elo")
+    spread_idx = columns.index("elo_spread")
+
+    group_names = [str(row[group_idx]) for row in rows]
+    avg_elos = [float(row[avg_idx]) for row in rows]
+    spreads = [float(row[spread_idx]) for row in rows]
+
+    fig, ax = plt.subplots(figsize=(11, 6.5))
+    fig.patch.set_facecolor("#f7f1e3")
+    ax.set_facecolor("#fffaf0")
+    bars = ax.barh(group_names, avg_elos, color="#2a9d8f", edgecolor="#264653")
+
+    for bar, spread in zip(bars, spreads, strict=True):
+        ax.text(
+            bar.get_width() + 4,
+            bar.get_y() + (bar.get_height() / 2),
+            f"spread {spread:.1f}",
+            va="center",
+            fontsize=9,
+            color="#264653",
+        )
+
+    ax.invert_yaxis()
+    ax.set_title("Group Strength Landscape", fontsize=16, pad=14, color="#1d3557")
+    ax.set_xlabel("Average Elo")
+    ax.grid(axis="x", linestyle="--", alpha=0.25)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_confidence_distribution_chart(
+    path: Path,
+    columns: list[str],
+    rows: list[tuple[Any, ...]],
+) -> None:
+    if not rows:
+        return
+
+    gap_idx = columns.index("confidence_gap")
+    gaps = [float(row[gap_idx]) for row in rows]
+
+    fig, ax = plt.subplots(figsize=(10.5, 6.0))
+    fig.patch.set_facecolor("#f5efe6")
+    ax.set_facecolor("#fffdf8")
+    ax.hist(gaps, bins=10, color="#e76f51", edgecolor="#6d6875", alpha=0.9)
+    ax.axvline(sum(gaps) / len(gaps), color="#1d3557", linestyle="--", linewidth=2)
+    ax.set_title("Group Stage Prediction Confidence Distribution", fontsize=16, pad=14)
+    ax.set_xlabel("Confidence Gap")
+    ax.set_ylabel("Matches")
+    ax.grid(axis="y", linestyle="--", alpha=0.25)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
 def build_pack_index(
     generated_at: str,
     group_files: list[tuple[str, Path]],
@@ -230,6 +373,7 @@ def build_pack_index(
     group_summary: tuple[list[str], list[tuple[Any, ...]]],
     balanced_matches: tuple[list[str], list[tuple[Any, ...]]],
     lopsided_matches: tuple[list[str], list[tuple[Any, ...]]],
+    chart_files: list[tuple[str, Path]],
 ) -> str:
     group_summary_columns, group_summary_rows = group_summary
     balanced_columns, balanced_rows = balanced_matches
@@ -240,6 +384,7 @@ def build_pack_index(
         f"Generated at: {generated_at}\n",
         f"Groups included: {len(group_files)}\n",
         f"Teams included: {len(team_files)}\n",
+        render_chart_section("Visual Dashboards", chart_files),
         render_section(
             "Group Strength Summary",
             group_summary_columns,
@@ -286,6 +431,7 @@ def generate_world_cup_pack(
     output_dir.mkdir(parents=True, exist_ok=True)
     groups_dir = output_dir / "groups"
     teams_dir = output_dir / "teams"
+    charts_dir = output_dir / "charts"
     groups_dir.mkdir(parents=True, exist_ok=True)
 
     group_files: list[tuple[str, Path]] = []
@@ -317,6 +463,19 @@ def generate_world_cup_pack(
             team_files.append((team_name, Path("teams") / team_path.name))
 
     generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
+    group_summary = query_group_strength_rollup()
+    confidence_distribution = query_prediction_confidence_distribution("Group Stage")
+    group_chart_path = charts_dir / "group_strength_landscape.png"
+    confidence_chart_path = charts_dir / "group_stage_confidence_distribution.png"
+    plot_group_strength_chart(group_chart_path, *group_summary)
+    plot_confidence_distribution_chart(confidence_chart_path, *confidence_distribution)
+    chart_files = [
+        ("Group Strength Landscape", Path("charts") / group_chart_path.name),
+        (
+            "Group Stage Prediction Confidence Distribution",
+            Path("charts") / confidence_chart_path.name,
+        ),
+    ]
     index_path = output_dir / "index.md"
     write_report(
         index_path,
@@ -324,9 +483,10 @@ def generate_world_cup_pack(
             generated_at,
             group_files,
             team_files,
-            query_group_strength_rollup(),
+            group_summary,
             query_prediction_extremes("balanced", "Group Stage", None, 8),
             query_prediction_extremes("lopsided", "Group Stage", None, 8),
+            chart_files,
         ),
     )
     return index_path

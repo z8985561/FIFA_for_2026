@@ -175,6 +175,7 @@ Default pack output:
 
 - `reports/world_cup_2026_pack/index.md`
 - `reports/world_cup_2026_pack/groups/`
+- `reports/world_cup_2026_pack/charts/`
 - `reports/world_cup_2026_pack/teams/` when `--include-team-reports` is enabled
 
-The generated `index.md` includes tournament-level summaries for group strength and the most balanced or lopsided group-stage matches.
+The generated `index.md` includes tournament-level summaries for group strength, the most balanced or lopsided group-stage matches, and chart assets embedded from `reports/world_cup_2026_pack/charts/`.
