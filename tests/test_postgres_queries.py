@@ -38,3 +38,20 @@ def test_parser_accepts_group_overview_command() -> None:
     assert args.command == "group-overview"
     assert args.group_name == "Group C"
     assert args.output == "out.csv"
+
+
+def test_parser_accepts_recent_form_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["recent-form", "--team", "Brazil", "--limit", "8"])
+
+    assert args.command == "recent-form"
+    assert args.team == "Brazil"
+    assert args.limit == 8
+
+
+def test_parser_accepts_team_vs_field_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["team-vs-field", "--team", "Argentina"])
+
+    assert args.command == "team-vs-field"
+    assert args.team == "Argentina"

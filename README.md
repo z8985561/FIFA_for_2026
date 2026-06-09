@@ -134,4 +134,6 @@ python -m src.postgres_queries team-summary --team Argentina
 python -m src.postgres_queries prediction-query --group-name "Group C" --limit 6
 python -m src.postgres_queries group-overview --group-name "Group C"
 python -m src.postgres_queries top-rated --limit 20 --output reports/top_rated.csv
+python -m src.postgres_queries recent-form --team Brazil --limit 8
+python -m src.postgres_queries team-vs-field --team Argentina
 ```

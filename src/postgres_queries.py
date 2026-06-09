@@ -262,6 +262,142 @@ def query_group_overview(group_name: str) -> tuple[list[str], list[tuple[Any, ..
     return run_query(sql, (group_name,))
 
 
+def query_recent_form(team: str, limit: int) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    sql = f"""
+        WITH recent_matches AS (
+            SELECT
+                match_date,
+                home_team,
+                away_team,
+                home_score,
+                away_score,
+                tournament,
+                CASE
+                    WHEN home_team = %s AND outcome = 'home_win' THEN 'win'
+                    WHEN away_team = %s AND outcome = 'away_win' THEN 'win'
+                    WHEN outcome = 'draw' THEN 'draw'
+                    ELSE 'loss'
+                END AS result_for_team,
+                CASE
+                    WHEN home_team = %s THEN home_score
+                    ELSE away_score
+                END AS goals_for,
+                CASE
+                    WHEN home_team = %s THEN away_score
+                    ELSE home_score
+                END AS goals_against
+            FROM {qualified_name(schema, "matches")}
+            WHERE home_team = %s OR away_team = %s
+            ORDER BY match_date DESC
+            LIMIT %s
+        )
+        SELECT
+            %s AS team_name,
+            COUNT(*) AS matches_sampled,
+            SUM(CASE WHEN result_for_team = 'win' THEN 1 ELSE 0 END) AS wins,
+            SUM(CASE WHEN result_for_team = 'draw' THEN 1 ELSE 0 END) AS draws,
+            SUM(CASE WHEN result_for_team = 'loss' THEN 1 ELSE 0 END) AS losses,
+            ROUND(AVG(goals_for)::numeric, 3) AS avg_goals_for,
+            ROUND(AVG(goals_against)::numeric, 3) AS avg_goals_against
+        FROM recent_matches
+    """
+    params = (team, team, team, team, team, team, limit, team)
+    return run_query(sql, params)
+
+
+def query_team_vs_field(team: str) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    sql = f"""
+        WITH team_stats AS (
+            SELECT
+                s.team_name,
+                s.latest_elo,
+                s.matches_played,
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN m.outcome = 'home_win' AND m.home_team = s.team_name THEN 1
+                            ELSE 0
+                        END
+                    ),
+                    0
+                )
+                + COALESCE(
+                    SUM(
+                        CASE
+                            WHEN m.outcome = 'away_win' AND m.away_team = s.team_name THEN 1
+                            ELSE 0
+                        END
+                    ),
+                    0
+                )
+                AS wins,
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN m.outcome = 'draw'
+                            AND (
+                                m.home_team = s.team_name
+                                OR m.away_team = s.team_name
+                            ) THEN 1
+                            ELSE 0
+                        END
+                    ),
+                    0
+                )
+                AS draws,
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN m.outcome = 'home_win' AND m.away_team = s.team_name THEN 1
+                            ELSE 0
+                        END
+                    ),
+                    0
+                )
+                + COALESCE(
+                    SUM(
+                        CASE
+                            WHEN m.outcome = 'away_win' AND m.home_team = s.team_name THEN 1
+                            ELSE 0
+                        END
+                    ),
+                    0
+                )
+                AS losses
+            FROM {qualified_name(schema, "team_latest_snapshot")} AS s
+            LEFT JOIN {qualified_name(schema, "matches")} AS m
+                ON s.team_name = m.home_team OR s.team_name = m.away_team
+            WHERE s.team_name = %s
+            GROUP BY s.team_name, s.latest_elo, s.matches_played
+        ),
+        field_stats AS (
+            SELECT
+                ROUND(AVG(latest_elo)::numeric, 2) AS avg_field_elo,
+                ROUND(
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latest_elo)::numeric,
+                    2
+                ) AS median_field_elo,
+                ROUND(MAX(latest_elo)::numeric, 2) AS max_field_elo
+            FROM {qualified_name(schema, "team_latest_snapshot")}
+        )
+        SELECT
+            t.team_name,
+            ROUND(t.latest_elo::numeric, 2) AS latest_elo,
+            t.matches_played,
+            t.wins,
+            t.draws,
+            t.losses,
+            f.avg_field_elo,
+            f.median_field_elo,
+            f.max_field_elo
+        FROM team_stats AS t
+        CROSS JOIN field_stats AS f
+    """
+    return run_query(sql, (team,))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run common Postgres research queries.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -317,6 +453,21 @@ def build_parser() -> argparse.ArgumentParser:
     group_overview.add_argument("--group-name", required=True)
     group_overview.add_argument("--output")
 
+    recent_form = subparsers.add_parser(
+        "recent-form",
+        help="Show recent form summary for a team.",
+    )
+    recent_form.add_argument("--team", required=True)
+    recent_form.add_argument("--limit", type=int, default=10)
+    recent_form.add_argument("--output")
+
+    team_vs_field = subparsers.add_parser(
+        "team-vs-field",
+        help="Compare a team's profile against the full field.",
+    )
+    team_vs_field.add_argument("--team", required=True)
+    team_vs_field.add_argument("--output")
+
     return parser
 
 
@@ -345,6 +496,10 @@ def main() -> None:
         )
     elif args.command == "group-overview":
         columns, rows = query_group_overview(args.group_name)
+    elif args.command == "recent-form":
+        columns, rows = query_recent_form(args.team, args.limit)
+    elif args.command == "team-vs-field":
+        columns, rows = query_team_vs_field(args.team)
     else:
         raise ValueError(f"Unknown command: {args.command}")
 
