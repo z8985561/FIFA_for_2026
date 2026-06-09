@@ -13,11 +13,15 @@ from .data_pipeline import prepare_research_data
 from .project_paths import (
     BASELINE_PREDICTIONS_PATH,
     DATABASE_PATH,
+    FIFA_RANKINGS_PATH,
     FIXTURES_PATH,
     MATCHES_PATH,
     RATINGS_PATH,
+    SQUADS_2026_PATH,
     TEAMS_PATH,
+    WORLD_CUP_TEAMS_2026_PATH,
 )
+from .world_cup_identity import prepare_world_cup_identity_data
 
 DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 DEFAULT_SCHEMA = "research"
@@ -89,6 +93,46 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
         "home_win_probability",
         "predicted_outcome",
     ],
+    "fifa_rankings_2026": [
+        "fifa_rank",
+        "team_name",
+        "ranking_source",
+        "ranking_date",
+        "points",
+    ],
+    "squads_2026": [
+        "team_id",
+        "team_name",
+        "group_name",
+        "shirt_number",
+        "position",
+        "player_name",
+        "captain",
+        "date_of_birth",
+        "age",
+        "caps",
+        "goals",
+        "club",
+        "source_url",
+    ],
+    "world_cup_teams_2026": [
+        "team_id",
+        "team_name",
+        "group_name",
+        "confederation",
+        "fifa_rank",
+        "ranking_source",
+        "ranking_date",
+        "latest_elo",
+        "latest_match_date",
+        "matches_played",
+        "first_match_date",
+        "last_match_date",
+        "total_matches",
+        "squad_size",
+        "squad_average_age",
+        "squad_total_caps",
+    ],
 }
 
 
@@ -133,9 +177,19 @@ def load_postgres_config() -> PostgresConfig:
 
 
 def ensure_processed_data() -> None:
-    required_paths = [MATCHES_PATH, TEAMS_PATH, RATINGS_PATH, FIXTURES_PATH, DATABASE_PATH]
+    required_paths = [
+        MATCHES_PATH,
+        TEAMS_PATH,
+        RATINGS_PATH,
+        FIXTURES_PATH,
+        DATABASE_PATH,
+        FIFA_RANKINGS_PATH,
+        SQUADS_2026_PATH,
+        WORLD_CUP_TEAMS_2026_PATH,
+    ]
     if any(not path.exists() for path in required_paths):
         prepare_research_data()
+        prepare_world_cup_identity_data()
 
 
 def quote_identifier(identifier: str) -> str:
@@ -152,6 +206,9 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
     ratings_table = qualified_table(schema, "ratings")
     fixtures_table = qualified_table(schema, "fixtures_2026")
     predictions_table = qualified_table(schema, "baseline_predictions")
+    rankings_table = qualified_table(schema, "fifa_rankings_2026")
+    squads_table = qualified_table(schema, "squads_2026")
+    world_cup_teams_table = qualified_table(schema, "world_cup_teams_2026")
     quoted_schema = quote_identifier(schema)
 
     return (
@@ -232,6 +289,53 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {rankings_table} (
+            fifa_rank INTEGER NOT NULL,
+            team_name TEXT PRIMARY KEY,
+            ranking_source TEXT NOT NULL,
+            ranking_date DATE NOT NULL,
+            points DOUBLE PRECISION
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {squads_table} (
+            team_id TEXT NOT NULL,
+            team_name TEXT NOT NULL,
+            group_name TEXT NOT NULL,
+            shirt_number INTEGER NOT NULL,
+            position TEXT NOT NULL,
+            player_name TEXT NOT NULL,
+            captain BOOLEAN NOT NULL,
+            date_of_birth DATE NOT NULL,
+            age INTEGER NOT NULL,
+            caps BIGINT NOT NULL,
+            goals BIGINT NOT NULL,
+            club TEXT NOT NULL,
+            source_url TEXT NOT NULL,
+            PRIMARY KEY (team_name, shirt_number)
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {world_cup_teams_table} (
+            team_id TEXT PRIMARY KEY,
+            team_name TEXT NOT NULL,
+            group_name TEXT NOT NULL,
+            confederation TEXT,
+            fifa_rank INTEGER,
+            ranking_source TEXT,
+            ranking_date DATE,
+            latest_elo DOUBLE PRECISION,
+            latest_match_date DATE,
+            matches_played BIGINT,
+            first_match_date DATE,
+            last_match_date DATE,
+            total_matches BIGINT,
+            squad_size BIGINT,
+            squad_average_age DOUBLE PRECISION,
+            squad_total_caps BIGINT
+        )
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_matches_match_date
         ON {matches_table} (match_date)
         """,
@@ -250,6 +354,18 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         f"""
         CREATE INDEX IF NOT EXISTS idx_predictions_stage
         ON {predictions_table} (stage)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_rankings_rank
+        ON {rankings_table} (fifa_rank)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_squads_team
+        ON {squads_table} (team_name)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_world_cup_teams_group
+        ON {world_cup_teams_table} (group_name)
         """,
     )
 
@@ -273,6 +389,9 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         "ratings": pd.read_parquet(RATINGS_PATH),
         "fixtures_2026": pd.read_parquet(FIXTURES_PATH),
         "baseline_predictions": baseline_predictions,
+        "fifa_rankings_2026": pd.read_parquet(FIFA_RANKINGS_PATH),
+        "squads_2026": pd.read_parquet(SQUADS_2026_PATH),
+        "world_cup_teams_2026": pd.read_parquet(WORLD_CUP_TEAMS_2026_PATH),
     }
 
 
@@ -292,7 +411,16 @@ def dataframe_to_copy_buffer(frame: pd.DataFrame, columns: list[str]) -> io.Stri
 
 
 def truncate_tables(connection: psycopg.Connection, schema: str) -> None:
-    ordered_tables = ["matches", "teams", "ratings", "fixtures_2026", "baseline_predictions"]
+    ordered_tables = [
+        "matches",
+        "teams",
+        "ratings",
+        "fixtures_2026",
+        "baseline_predictions",
+        "fifa_rankings_2026",
+        "squads_2026",
+        "world_cup_teams_2026",
+    ]
     with connection.cursor() as cursor:
         for table in ordered_tables:
             cursor.execute(f"TRUNCATE TABLE {qualified_table(schema, table)}")

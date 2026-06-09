@@ -10,6 +10,9 @@ def test_view_sql_contains_expected_view_names() -> None:
         "match_outcome_summary",
         "world_cup_2026_known_fixtures",
         "top_rated_teams",
+        "world_cup_team_profiles",
+        "squad_summary",
+        "rankings_snapshot",
     }
 
 

@@ -503,6 +503,108 @@ def query_prediction_extremes(
     return run_query(sql, tuple(params))
 
 
+def query_world_cup_teams(
+    group_name: str | None,
+    confederation: str | None,
+    limit: int,
+) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if group_name:
+        clauses.append("group_name = %s")
+        params.append(group_name)
+    if confederation:
+        clauses.append("confederation = %s")
+        params.append(confederation)
+
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = f"""
+        SELECT
+            team_name,
+            group_name,
+            confederation,
+            fifa_rank,
+            ROUND(latest_elo::numeric, 2) AS latest_elo,
+            squad_size,
+            ROUND(squad_average_age::numeric, 2) AS squad_average_age,
+            squad_total_caps
+        FROM {qualified_name(schema, "world_cup_team_profiles")}
+        {where_clause}
+        ORDER BY fifa_rank NULLS LAST, latest_elo DESC NULLS LAST, team_name
+        LIMIT %s
+    """
+    params.append(limit)
+    return run_query(sql, tuple(params))
+
+
+def query_squad(team: str, position: str | None) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    clauses = ["team_name = %s"]
+    params: list[Any] = [team]
+
+    if position:
+        clauses.append("position = %s")
+        params.append(position)
+
+    sql = f"""
+        SELECT
+            team_name,
+            group_name,
+            shirt_number,
+            position,
+            player_name,
+            captain,
+            age,
+            caps,
+            goals,
+            club
+        FROM {qualified_name(schema, "squads_2026")}
+        WHERE {' AND '.join(clauses)}
+        ORDER BY shirt_number
+    """
+    return run_query(sql, tuple(params))
+
+
+def query_squad_summary(team: str | None) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    where_clause = "WHERE team_name = %s" if team else ""
+    params: tuple[Any, ...] = (team,) if team else ()
+    sql = f"""
+        SELECT
+            team_name,
+            group_name,
+            squad_size,
+            average_age,
+            total_caps,
+            total_goals,
+            captains_listed
+        FROM {qualified_name(schema, "squad_summary")}
+        {where_clause}
+        ORDER BY average_age, team_name
+    """
+    return run_query(sql, params)
+
+
+def query_group_profiles(group_name: str) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    sql = f"""
+        SELECT
+            team_name,
+            confederation,
+            fifa_rank,
+            ROUND(latest_elo::numeric, 2) AS latest_elo,
+            squad_size,
+            ROUND(squad_average_age::numeric, 2) AS squad_average_age,
+            squad_total_caps
+        FROM {qualified_name(schema, "world_cup_team_profiles")}
+        WHERE group_name = %s
+        ORDER BY fifa_rank NULLS LAST, latest_elo DESC NULLS LAST, team_name
+    """
+    return run_query(sql, (group_name,))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run common Postgres research queries.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -594,6 +696,37 @@ def build_parser() -> argparse.ArgumentParser:
     prediction_extremes.add_argument("--limit", type=int, default=10)
     prediction_extremes.add_argument("--output")
 
+    world_cup_teams = subparsers.add_parser(
+        "world-cup-teams",
+        help="Show qualified World Cup teams with ranking and squad profile fields.",
+    )
+    world_cup_teams.add_argument("--group-name")
+    world_cup_teams.add_argument("--confederation")
+    world_cup_teams.add_argument("--limit", type=int, default=60)
+    world_cup_teams.add_argument("--output")
+
+    squad = subparsers.add_parser(
+        "squad",
+        help="Show the full final squad for a team.",
+    )
+    squad.add_argument("--team", required=True)
+    squad.add_argument("--position")
+    squad.add_argument("--output")
+
+    squad_summary = subparsers.add_parser(
+        "squad-summary",
+        help="Show squad summary metrics for one team or all teams.",
+    )
+    squad_summary.add_argument("--team")
+    squad_summary.add_argument("--output")
+
+    group_profiles = subparsers.add_parser(
+        "group-profiles",
+        help="Show World Cup team profile fields for one group.",
+    )
+    group_profiles.add_argument("--group-name", required=True)
+    group_profiles.add_argument("--output")
+
     return parser
 
 
@@ -635,6 +768,18 @@ def main() -> None:
             args.group_name,
             args.limit,
         )
+    elif args.command == "world-cup-teams":
+        columns, rows = query_world_cup_teams(
+            args.group_name,
+            args.confederation,
+            args.limit,
+        )
+    elif args.command == "squad":
+        columns, rows = query_squad(args.team, args.position)
+    elif args.command == "squad-summary":
+        columns, rows = query_squad_summary(args.team)
+    elif args.command == "group-profiles":
+        columns, rows = query_group_profiles(args.group_name)
     else:
         raise ValueError(f"Unknown command: {args.command}")
 

@@ -83,3 +83,41 @@ def test_parser_accepts_prediction_extremes_command() -> None:
     assert args.mode == "lopsided"
     assert args.stage == "Group Stage"
     assert args.limit == 5
+
+
+def test_parser_accepts_world_cup_teams_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        ["world-cup-teams", "--group-name", "Group C", "--confederation", "CAF", "--limit", "5"]
+    )
+
+    assert args.command == "world-cup-teams"
+    assert args.group_name == "Group C"
+    assert args.confederation == "CAF"
+    assert args.limit == 5
+
+
+def test_parser_accepts_squad_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["squad", "--team", "Argentina", "--position", "FW"])
+
+    assert args.command == "squad"
+    assert args.team == "Argentina"
+    assert args.position == "FW"
+
+
+def test_parser_accepts_squad_summary_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["squad-summary", "--team", "Argentina"])
+
+    assert args.command == "squad-summary"
+    assert args.team == "Argentina"
+
+
+def test_parser_accepts_group_profiles_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["group-profiles", "--group-name", "Group C", "--output", "out.csv"])
+
+    assert args.command == "group-profiles"
+    assert args.group_name == "Group C"
+    assert args.output == "out.csv"

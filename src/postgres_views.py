@@ -39,6 +39,9 @@ def view_sql(schema: str) -> dict[str, str]:
     teams = qualified_table(schema, "teams")
     fixtures = qualified_table(schema, "fixtures_2026")
     predictions = qualified_table(schema, "baseline_predictions")
+    rankings = qualified_table(schema, "fifa_rankings_2026")
+    squads = qualified_table(schema, "squads_2026")
+    world_cup_teams = qualified_table(schema, "world_cup_teams_2026")
     qs = quote_identifier(schema)
 
     return {
@@ -98,6 +101,51 @@ def view_sql(schema: str) -> dict[str, str]:
                 ROUND(away_win_probability::numeric, 4) AS away_win_probability,
                 predicted_outcome
             FROM {predictions}
+        """,
+        "world_cup_team_profiles": f"""
+            CREATE OR REPLACE VIEW {qs}.world_cup_team_profiles AS
+            SELECT
+                w.team_id,
+                w.team_name,
+                w.group_name,
+                w.confederation,
+                w.fifa_rank,
+                w.ranking_source,
+                w.ranking_date,
+                w.latest_elo,
+                w.latest_match_date,
+                w.matches_played,
+                w.first_match_date,
+                w.last_match_date,
+                w.total_matches,
+                w.squad_size,
+                w.squad_average_age,
+                w.squad_total_caps
+            FROM {world_cup_teams} AS w
+        """,
+        "squad_summary": f"""
+            CREATE OR REPLACE VIEW {qs}.squad_summary AS
+            SELECT
+                s.team_name,
+                s.group_name,
+                COUNT(*) AS squad_size,
+                ROUND(AVG(s.age)::numeric, 2) AS average_age,
+                SUM(s.caps) AS total_caps,
+                SUM(s.goals) AS total_goals,
+                SUM(CASE WHEN s.captain THEN 1 ELSE 0 END) AS captains_listed
+            FROM {squads} AS s
+            GROUP BY s.team_name, s.group_name
+        """,
+        "rankings_snapshot": f"""
+            CREATE OR REPLACE VIEW {qs}.rankings_snapshot AS
+            SELECT
+                r.fifa_rank,
+                r.team_name,
+                r.ranking_source,
+                r.ranking_date,
+                r.points
+            FROM {rankings} AS r
+            ORDER BY r.fifa_rank, r.team_name
         """,
     }
 
