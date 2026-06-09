@@ -72,6 +72,7 @@ python -m src.postgres_views
 python -m src.world_cup_identity
 python -m src.feature_store
 python -m src.enhanced_model
+python -m src.tournament_simulator
 python -m src.postgres_sync
 python -m src.postgres_queries top-rated --limit 10
 python -m src.postgres_queries match-features --team Argentina
@@ -135,6 +136,24 @@ Outputs:
 - `data/features/historical_match_feature_store.parquet`
 - `reports/enhanced_model_metrics.json`
 - `reports/world_cup_2026_enhanced_predictions.csv`
+
+## Tournament Simulation
+
+Run a Monte Carlo simulation from group stage through the final:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.tournament_simulator --simulations 10000 --seed 20260609
+```
+
+Output:
+
+- `reports/world_cup_2026_tournament_simulation.csv`
+
+The first simulator version uses enhanced model probabilities for group-stage matches and
+neutral-field Elo probabilities for knockout advancement. It implements 12 groups, best eight
+third-place teams, and a deterministic Round-of-32 third-place slot assignment. The third-place
+slot assignment should be replaced with the full official allocation table once encoded.
 
 ## Postgres Sync
 
