@@ -2,6 +2,10 @@
 
 This workspace is prepared for World Cup match win probability research on Windows.
 
+## Planning Docs
+
+- Data collection plan: [docs/data_collection_plan.md](docs/data_collection_plan.md)
+
 ## Environment
 
 - Python `3.11`
@@ -65,6 +69,7 @@ python -m src.data_pipeline
 python -m src.baseline_model
 python -m src.postgres_sync
 python -m src.postgres_views
+python -m src.world_cup_identity
 python -m src.postgres_queries top-rated --limit 10
 python -m src.postgres_queries team-summary --team Argentina
 python -m src.postgres_queries prediction-query --team Brazil --limit 5
@@ -114,6 +119,21 @@ python -m src.postgres_sync
 ```
 
 Default connection settings are read from `.env`.
+
+## World Cup Identity Collection
+
+Build the first identity-layer dataset for all 48 qualified teams:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.world_cup_identity
+```
+
+Outputs:
+
+- `data/processed/fifa_rankings_2026.parquet`
+- `data/processed/squads_2026.parquet`
+- `data/processed/world_cup_teams_2026.parquet`
 
 ## Postgres Views
 

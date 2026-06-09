@@ -8,6 +8,7 @@ __pycache__/
 src/*.egg-info/
 python-3.11.9-amd64.exe
 data/raw/international_results.csv
+data/raw/identity/*
 data/processed/*
 !data/processed/.gitkeep
 reports/*.json

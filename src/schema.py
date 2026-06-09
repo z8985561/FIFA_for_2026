@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from duckdb import DuckDBPyConnection
 
 SCHEMA_SQL: dict[str, str] = {
@@ -59,9 +61,60 @@ SCHEMA_SQL: dict[str, str] = {
             neutral BOOLEAN
         )
     """,
+    "fifa_rankings_2026": """
+        CREATE OR REPLACE TABLE fifa_rankings_2026 (
+            fifa_rank INTEGER,
+            team_name VARCHAR,
+            ranking_source VARCHAR,
+            ranking_date DATE,
+            points DOUBLE
+        )
+    """,
+    "squads_2026": """
+        CREATE OR REPLACE TABLE squads_2026 (
+            team_id VARCHAR,
+            team_name VARCHAR,
+            group_name VARCHAR,
+            shirt_number INTEGER,
+            position VARCHAR,
+            player_name VARCHAR,
+            captain BOOLEAN,
+            date_of_birth DATE,
+            age INTEGER,
+            caps BIGINT,
+            goals BIGINT,
+            club VARCHAR,
+            source_url VARCHAR
+        )
+    """,
+    "world_cup_teams_2026": """
+        CREATE OR REPLACE TABLE world_cup_teams_2026 (
+            team_id VARCHAR,
+            team_name VARCHAR,
+            group_name VARCHAR,
+            confederation VARCHAR,
+            fifa_rank INTEGER,
+            ranking_source VARCHAR,
+            ranking_date DATE,
+            latest_elo DOUBLE,
+            latest_match_date DATE,
+            matches_played BIGINT,
+            first_match_date DATE,
+            last_match_date DATE,
+            total_matches BIGINT,
+            squad_size BIGINT,
+            squad_average_age DOUBLE,
+            squad_total_caps BIGINT
+        )
+    """,
 }
 
 
-def apply_schema(connection: DuckDBPyConnection) -> None:
-    for statement in SCHEMA_SQL.values():
+def apply_schema(
+    connection: DuckDBPyConnection,
+    table_names: Iterable[str] | None = None,
+) -> None:
+    names = tuple(table_names) if table_names is not None else tuple(SCHEMA_SQL)
+    for table_name in names:
+        statement = SCHEMA_SQL[table_name]
         connection.execute(statement)
