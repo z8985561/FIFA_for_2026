@@ -31,6 +31,17 @@ def test_parser_accepts_prediction_query_command() -> None:
     assert args.limit == 2
 
 
+def test_parser_accepts_enhanced_prediction_query_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        ["enhanced-prediction-query", "--group-name", "Group C", "--limit", "4"]
+    )
+
+    assert args.command == "enhanced-prediction-query"
+    assert args.group_name == "Group C"
+    assert args.limit == 4
+
+
 def test_parser_accepts_group_overview_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["group-overview", "--group-name", "Group C", "--output", "out.csv"])

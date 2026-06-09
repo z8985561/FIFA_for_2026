@@ -10,12 +10,16 @@ import pandas as pd
 import psycopg
 
 from .data_pipeline import prepare_research_data
+from .enhanced_features import enhanced_feature_columns
+from .enhanced_model import prepare_enhanced_outputs
 from .feature_store import prepare_match_feature_store
 from .project_paths import (
     BASELINE_PREDICTIONS_PATH,
     DATABASE_PATH,
+    ENHANCED_PREDICTIONS_PATH,
     FIFA_RANKINGS_PATH,
     FIXTURES_PATH,
+    HISTORICAL_MATCH_FEATURE_STORE_PATH,
     MATCH_FEATURE_STORE_2026_PATH,
     MATCHES_PATH,
     RATINGS_PATH,
@@ -27,6 +31,40 @@ from .world_cup_identity import prepare_world_cup_identity_data
 
 DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 DEFAULT_SCHEMA = "research"
+
+HISTORICAL_FEATURE_STORE_ID_COLUMNS = [
+    "match_id",
+    "match_date",
+    "home_team",
+    "away_team",
+    "home_score",
+    "away_score",
+    "competition_type",
+    "outcome",
+]
+
+ENHANCED_PREDICTION_COLUMNS = [
+    "match_no",
+    "stage",
+    "group_name",
+    "date_et",
+    "home_team",
+    "away_team",
+    "home_latest_elo",
+    "away_latest_elo",
+    "elo_diff",
+    "expected_home_win",
+    "home_rest_days",
+    "away_rest_days",
+    "rest_days_diff",
+    "points_per_match_diff_last_5",
+    "goal_diff_per_match_diff_last_5",
+    "win_rate_diff_last_10",
+    "away_win_probability",
+    "draw_probability",
+    "home_win_probability",
+    "predicted_outcome",
+]
 
 
 POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
@@ -170,6 +208,11 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
         "group_elo_spread",
         "neutral",
     ],
+    "historical_match_feature_store": [
+        *HISTORICAL_FEATURE_STORE_ID_COLUMNS,
+        *enhanced_feature_columns(),
+    ],
+    "enhanced_predictions": ENHANCED_PREDICTION_COLUMNS,
 }
 
 
@@ -224,11 +267,14 @@ def ensure_processed_data() -> None:
         SQUADS_2026_PATH,
         WORLD_CUP_TEAMS_2026_PATH,
         MATCH_FEATURE_STORE_2026_PATH,
+        HISTORICAL_MATCH_FEATURE_STORE_PATH,
+        ENHANCED_PREDICTIONS_PATH,
     ]
     if any(not path.exists() for path in required_paths):
         prepare_research_data()
         prepare_world_cup_identity_data()
         prepare_match_feature_store()
+        prepare_enhanced_outputs()
 
 
 def quote_identifier(identifier: str) -> str:
@@ -249,7 +295,13 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
     squads_table = qualified_table(schema, "squads_2026")
     world_cup_teams_table = qualified_table(schema, "world_cup_teams_2026")
     match_feature_store_table = qualified_table(schema, "match_feature_store_2026")
+    historical_feature_store_table = qualified_table(schema, "historical_match_feature_store")
+    enhanced_predictions_table = qualified_table(schema, "enhanced_predictions")
     quoted_schema = quote_identifier(schema)
+    historical_feature_columns_sql = ",\n            ".join(
+        f"{quote_identifier(column)} DOUBLE PRECISION NOT NULL"
+        for column in enhanced_feature_columns()
+    )
 
     return (
         f"CREATE SCHEMA IF NOT EXISTS {quoted_schema}",
@@ -413,6 +465,43 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {historical_feature_store_table} (
+            match_id BIGINT PRIMARY KEY,
+            match_date DATE NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            home_score INTEGER NOT NULL,
+            away_score INTEGER NOT NULL,
+            competition_type TEXT NOT NULL,
+            outcome TEXT NOT NULL,
+            {historical_feature_columns_sql}
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {enhanced_predictions_table} (
+            match_no BIGINT PRIMARY KEY,
+            stage TEXT NOT NULL,
+            group_name TEXT,
+            date_et DATE NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            home_latest_elo DOUBLE PRECISION,
+            away_latest_elo DOUBLE PRECISION,
+            elo_diff DOUBLE PRECISION,
+            expected_home_win DOUBLE PRECISION,
+            home_rest_days DOUBLE PRECISION,
+            away_rest_days DOUBLE PRECISION,
+            rest_days_diff DOUBLE PRECISION,
+            points_per_match_diff_last_5 DOUBLE PRECISION,
+            goal_diff_per_match_diff_last_5 DOUBLE PRECISION,
+            win_rate_diff_last_10 DOUBLE PRECISION,
+            away_win_probability DOUBLE PRECISION NOT NULL,
+            draw_probability DOUBLE PRECISION NOT NULL,
+            home_win_probability DOUBLE PRECISION NOT NULL,
+            predicted_outcome TEXT NOT NULL
+        )
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_matches_match_date
         ON {matches_table} (match_date)
         """,
@@ -448,6 +537,14 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         CREATE INDEX IF NOT EXISTS idx_match_feature_store_group
         ON {match_feature_store_table} (group_name)
         """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_historical_feature_store_match_date
+        ON {historical_feature_store_table} (match_date)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_enhanced_predictions_group
+        ON {enhanced_predictions_table} (group_name)
+        """,
     )
 
 
@@ -474,6 +571,12 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         "squads_2026": pd.read_parquet(SQUADS_2026_PATH),
         "world_cup_teams_2026": pd.read_parquet(WORLD_CUP_TEAMS_2026_PATH),
         "match_feature_store_2026": pd.read_parquet(MATCH_FEATURE_STORE_2026_PATH),
+        "historical_match_feature_store": pd.read_parquet(HISTORICAL_MATCH_FEATURE_STORE_PATH),
+        "enhanced_predictions": (
+            pd.read_csv(ENHANCED_PREDICTIONS_PATH)
+            if ENHANCED_PREDICTIONS_PATH.exists()
+            else pd.DataFrame()
+        ),
     }
 
 
@@ -503,6 +606,8 @@ def truncate_tables(connection: psycopg.Connection, schema: str) -> None:
         "squads_2026",
         "world_cup_teams_2026",
         "match_feature_store_2026",
+        "historical_match_feature_store",
+        "enhanced_predictions",
     ]
     with connection.cursor() as cursor:
         for table in ordered_tables:

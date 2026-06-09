@@ -24,6 +24,10 @@ def test_postgres_schema_sql_uses_requested_schema() -> None:
     assert any('CREATE SCHEMA IF NOT EXISTS "analytics"' in statement for statement in statements)
     assert any('"analytics"."world_cup_teams_2026"' in statement for statement in statements)
     assert any('"analytics"."match_feature_store_2026"' in statement for statement in statements)
+    assert any(
+        '"analytics"."historical_match_feature_store"' in statement for statement in statements
+    )
+    assert any('"analytics"."enhanced_predictions"' in statement for statement in statements)
 
 
 def test_qualified_table_quotes_schema_and_table() -> None:

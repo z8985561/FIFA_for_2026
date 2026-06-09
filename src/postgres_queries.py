@@ -236,6 +236,55 @@ def query_prediction_lookup(
     return run_query(sql, tuple(params))
 
 
+def query_enhanced_prediction_lookup(
+    team: str | None,
+    stage: str | None,
+    group_name: str | None,
+    limit: int,
+) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if team:
+        clauses.append("(home_team = %s OR away_team = %s)")
+        params.extend([team, team])
+    if stage:
+        clauses.append("stage = %s")
+        params.append(stage)
+    if group_name:
+        clauses.append("group_name = %s")
+        params.append(group_name)
+
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = f"""
+        SELECT
+            match_no,
+            stage,
+            group_name,
+            date_et,
+            home_team,
+            away_team,
+            elo_diff,
+            expected_home_win,
+            home_rest_days,
+            away_rest_days,
+            points_per_match_diff_last_5,
+            goal_diff_per_match_diff_last_5,
+            win_rate_diff_last_10,
+            home_win_probability,
+            draw_probability,
+            away_win_probability,
+            predicted_outcome
+        FROM {qualified_name(schema, "enhanced_prediction_summary")}
+        {where_clause}
+        ORDER BY match_no
+        LIMIT %s
+    """
+    params.append(limit)
+    return run_query(sql, tuple(params))
+
+
 def query_group_overview(group_name: str) -> tuple[list[str], list[tuple[Any, ...]]]:
     schema = load_postgres_view_config().schema
     sql = f"""
@@ -812,6 +861,16 @@ def build_parser() -> argparse.ArgumentParser:
     prediction_query.add_argument("--limit", type=int, default=20)
     prediction_query.add_argument("--output")
 
+    enhanced_prediction_query = subparsers.add_parser(
+        "enhanced-prediction-query",
+        help="Show enhanced prediction rows with recent-form context.",
+    )
+    enhanced_prediction_query.add_argument("--team")
+    enhanced_prediction_query.add_argument("--stage")
+    enhanced_prediction_query.add_argument("--group-name")
+    enhanced_prediction_query.add_argument("--limit", type=int, default=20)
+    enhanced_prediction_query.add_argument("--output")
+
     group_overview = subparsers.add_parser(
         "group-overview",
         help="Show a World Cup group with Elo and baseline probabilities.",
@@ -937,6 +996,13 @@ def main() -> None:
         columns, rows = query_team_summary(args.team)
     elif args.command == "prediction-query":
         columns, rows = query_prediction_lookup(
+            args.team,
+            args.stage,
+            args.group_name,
+            args.limit,
+        )
+    elif args.command == "enhanced-prediction-query":
+        columns, rows = query_enhanced_prediction_lookup(
             args.team,
             args.stage,
             args.group_name,

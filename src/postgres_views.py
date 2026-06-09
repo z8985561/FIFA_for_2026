@@ -39,6 +39,7 @@ def view_sql(schema: str) -> dict[str, str]:
     teams = qualified_table(schema, "teams")
     fixtures = qualified_table(schema, "fixtures_2026")
     predictions = qualified_table(schema, "baseline_predictions")
+    enhanced_predictions = qualified_table(schema, "enhanced_predictions")
     rankings = qualified_table(schema, "fifa_rankings_2026")
     squads = qualified_table(schema, "squads_2026")
     world_cup_teams = qualified_table(schema, "world_cup_teams_2026")
@@ -101,6 +102,33 @@ def view_sql(schema: str) -> dict[str, str]:
                 ROUND(away_win_probability::numeric, 4) AS away_win_probability,
                 predicted_outcome
             FROM {predictions}
+        """,
+        "enhanced_prediction_summary": f"""
+            CREATE OR REPLACE VIEW {qs}.enhanced_prediction_summary AS
+            SELECT
+                match_no,
+                stage,
+                group_name,
+                date_et,
+                home_team,
+                away_team,
+                ROUND(home_latest_elo::numeric, 2) AS home_latest_elo,
+                ROUND(away_latest_elo::numeric, 2) AS away_latest_elo,
+                ROUND(elo_diff::numeric, 2) AS elo_diff,
+                ROUND(expected_home_win::numeric, 4) AS expected_home_win,
+                ROUND(home_rest_days::numeric, 2) AS home_rest_days,
+                ROUND(away_rest_days::numeric, 2) AS away_rest_days,
+                ROUND(rest_days_diff::numeric, 2) AS rest_days_diff,
+                ROUND(points_per_match_diff_last_5::numeric, 4)
+                    AS points_per_match_diff_last_5,
+                ROUND(goal_diff_per_match_diff_last_5::numeric, 4)
+                    AS goal_diff_per_match_diff_last_5,
+                ROUND(win_rate_diff_last_10::numeric, 4) AS win_rate_diff_last_10,
+                ROUND(home_win_probability::numeric, 4) AS home_win_probability,
+                ROUND(draw_probability::numeric, 4) AS draw_probability,
+                ROUND(away_win_probability::numeric, 4) AS away_win_probability,
+                predicted_outcome
+            FROM {enhanced_predictions}
         """,
         "world_cup_team_profiles": f"""
             CREATE OR REPLACE VIEW {qs}.world_cup_team_profiles AS

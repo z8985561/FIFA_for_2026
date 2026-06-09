@@ -39,6 +39,16 @@ class EnhancedMetrics:
     feature_count: int
 
 
+@dataclass(frozen=True)
+class EnhancedOutputs:
+    historical_feature_store_path: str
+    metrics_path: str
+    predictions_path: str
+    historical_rows: int
+    prediction_rows: int
+    metrics: EnhancedMetrics
+
+
 def ensure_enhanced_inputs() -> None:
     if not MATCHES_PATH.exists() or not RATINGS_PATH.exists():
         prepare_research_data()
@@ -137,7 +147,7 @@ def generate_enhanced_predictions(
     return output.sort_values("match_no").reset_index(drop=True)
 
 
-def main() -> None:
+def prepare_enhanced_outputs() -> EnhancedOutputs:
     ensure_project_directories()
     ensure_enhanced_inputs()
 
@@ -153,11 +163,23 @@ def main() -> None:
         encoding="utf-8",
     )
     predictions.to_csv(ENHANCED_PREDICTIONS_PATH, index=False, encoding="utf-8-sig")
+    return EnhancedOutputs(
+        historical_feature_store_path=str(HISTORICAL_MATCH_FEATURE_STORE_PATH),
+        metrics_path=str(ENHANCED_METRICS_PATH),
+        predictions_path=str(ENHANCED_PREDICTIONS_PATH),
+        historical_rows=len(historical_features),
+        prediction_rows=len(predictions),
+        metrics=metrics,
+    )
 
-    print(f"historical_feature_store_path: {HISTORICAL_MATCH_FEATURE_STORE_PATH}")
-    print(f"metrics_path: {ENHANCED_METRICS_PATH}")
-    print(f"predictions_path: {ENHANCED_PREDICTIONS_PATH}")
-    print(json.dumps(asdict(metrics), indent=2))
+
+def main() -> None:
+    outputs = prepare_enhanced_outputs()
+
+    print(f"historical_feature_store_path: {outputs.historical_feature_store_path}")
+    print(f"metrics_path: {outputs.metrics_path}")
+    print(f"predictions_path: {outputs.predictions_path}")
+    print(json.dumps(asdict(outputs.metrics), indent=2))
 
 
 if __name__ == "__main__":

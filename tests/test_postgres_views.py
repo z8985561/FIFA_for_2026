@@ -6,6 +6,7 @@ def test_view_sql_contains_expected_view_names() -> None:
 
     assert set(statements) == {
         "baseline_prediction_summary",
+        "enhanced_prediction_summary",
         "team_latest_snapshot",
         "match_outcome_summary",
         "world_cup_2026_known_fixtures",
