@@ -2,9 +2,12 @@ from src.research_report import (
     build_pack_index,
     build_parser,
     default_group_report_path,
+    default_report_asset_dir,
     default_team_report_path,
     default_world_cup_pack_dir,
     markdown_table,
+    relative_markdown_path,
+    render_chart_section,
     slugify,
 )
 
@@ -41,6 +44,31 @@ def test_default_world_cup_pack_dir_uses_reports_directory() -> None:
     path = default_world_cup_pack_dir()
 
     assert path.name == "world_cup_2026_pack"
+
+
+def test_default_report_asset_dir_uses_report_stem() -> None:
+    path = default_report_asset_dir(default_team_report_path("Argentina"))
+
+    assert path.name == "team_report_argentina_assets"
+
+
+def test_relative_markdown_path_uses_parent_directory() -> None:
+    report_path = default_world_cup_pack_dir() / "groups/group_c.md"
+    chart_path = default_world_cup_pack_dir() / "charts/groups/group_c_strength.png"
+
+    assert relative_markdown_path(report_path, chart_path).as_posix() == (
+        "../charts/groups/group_c_strength.png"
+    )
+
+
+def test_render_chart_section_embeds_markdown_images() -> None:
+    section = render_chart_section(
+        "Visual Dashboards",
+        [("Strength", default_world_cup_pack_dir() / "charts/group_strength.png")],
+    )
+
+    assert "## Visual Dashboards" in section
+    assert "![Strength]" in section
 
 
 def test_build_pack_index_renders_navigation_sections() -> None:

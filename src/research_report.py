@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,6 +27,24 @@ from .postgres_queries import (
 )
 from .postgres_views import load_postgres_view_config
 from .project_paths import REPORTS_DIR
+
+
+@dataclass(frozen=True)
+class TeamReportData:
+    team: str
+    team_summary: tuple[list[str], list[tuple[Any, ...]]]
+    team_vs_field: tuple[list[str], list[tuple[Any, ...]]]
+    recent_form: tuple[list[str], list[tuple[Any, ...]]]
+    predictions: tuple[list[str], list[tuple[Any, ...]]]
+
+
+@dataclass(frozen=True)
+class GroupReportData:
+    group_name: str
+    group_strength: tuple[list[str], list[tuple[Any, ...]]]
+    group_overview: tuple[list[str], list[tuple[Any, ...]]]
+    balanced_matches: tuple[list[str], list[tuple[Any, ...]]]
+    lopsided_matches: tuple[list[str], list[tuple[Any, ...]]]
 
 
 def slugify(value: str) -> str:
@@ -54,6 +74,8 @@ def render_section(
 
 
 def render_chart_section(title: str, chart_paths: list[tuple[str, Path]]) -> str:
+    if not chart_paths:
+        return f"## {title}\n\nNo charts available.\n"
     lines = [f"## {title}\n"]
     for caption, path in chart_paths:
         lines.append(f"### {caption}\n")
@@ -73,6 +95,10 @@ def default_world_cup_pack_dir() -> Path:
     return REPORTS_DIR / "world_cup_2026_pack"
 
 
+def default_report_asset_dir(report_path: Path) -> Path:
+    return report_path.parent / f"{report_path.stem}_assets"
+
+
 def write_report(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
@@ -82,95 +108,132 @@ def current_schema() -> str:
     return load_postgres_view_config().schema
 
 
-def build_team_report(team: str, fixture_limit: int = 8, form_limit: int = 8) -> str:
-    team_summary_columns, team_summary_rows = query_team_summary(team)
-    team_vs_field_columns, team_vs_field_rows = query_team_vs_field(team)
-    recent_form_columns, recent_form_rows = query_recent_form(team, form_limit)
-    prediction_columns, prediction_rows = query_prediction_lookup(
+def relative_markdown_path(from_path: Path, to_path: Path) -> Path:
+    return Path(os.path.relpath(to_path, start=from_path.parent))
+
+
+def load_team_report_data(team: str, fixture_limit: int = 8, form_limit: int = 8) -> TeamReportData:
+    return TeamReportData(
         team=team,
-        stage=None,
-        group_name=None,
-        limit=fixture_limit,
+        team_summary=query_team_summary(team),
+        team_vs_field=query_team_vs_field(team),
+        recent_form=query_recent_form(team, form_limit),
+        predictions=query_prediction_lookup(
+            team=team,
+            stage=None,
+            group_name=None,
+            limit=fixture_limit,
+        ),
     )
 
+
+def load_group_report_data(
+    group_name: str,
+    overview_limit: int = 12,
+    extremes_limit: int = 6,
+) -> GroupReportData:
+    group_overview = query_group_overview(group_name)
+    overview_columns, overview_rows = group_overview
+    if overview_limit < len(overview_rows):
+        group_overview = (overview_columns, overview_rows[:overview_limit])
+
+    return GroupReportData(
+        group_name=group_name,
+        group_strength=query_group_strength(group_name),
+        group_overview=group_overview,
+        balanced_matches=query_prediction_extremes(
+            mode="balanced",
+            stage=None,
+            group_name=group_name,
+            limit=extremes_limit,
+        ),
+        lopsided_matches=query_prediction_extremes(
+            mode="lopsided",
+            stage=None,
+            group_name=group_name,
+            limit=extremes_limit,
+        ),
+    )
+
+
+def build_team_report(
+    data: TeamReportData,
+    chart_files: list[tuple[str, Path]] | None = None,
+) -> str:
+    team_summary_columns, team_summary_rows = data.team_summary
+    team_vs_field_columns, team_vs_field_rows = data.team_vs_field
+    recent_form_columns, recent_form_rows = data.recent_form
+    prediction_columns, prediction_rows = data.predictions
+    matches_sampled = recent_form_rows[0][1] if recent_form_rows else 0
     generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
     sections = [
-        f"# Team Research Report: {team}\n",
+        f"# Team Research Report: {data.team}\n",
         f"Generated at: {generated_at}\n",
+        render_chart_section("Visual Dashboards", chart_files or []),
         render_section(
             "Team Snapshot",
             team_summary_columns,
             team_summary_rows,
-            f"No team summary found for {team}.",
+            f"No team summary found for {data.team}.",
         ),
         render_section(
             "Team Vs Field",
             team_vs_field_columns,
             team_vs_field_rows,
-            f"No team-vs-field comparison found for {team}.",
+            f"No team-vs-field comparison found for {data.team}.",
         ),
         render_section(
-            f"Recent Form Last {form_limit} Matches",
+            f"Recent Form Last {matches_sampled} Matches",
             recent_form_columns,
             recent_form_rows,
-            f"No recent form sample found for {team}.",
+            f"No recent form sample found for {data.team}.",
         ),
         render_section(
             "Known 2026 World Cup Predictions",
             prediction_columns,
             prediction_rows,
-            f"No known 2026 fixtures or predictions found for {team}.",
+            f"No known 2026 fixtures or predictions found for {data.team}.",
         ),
     ]
     return "\n".join(sections).strip() + "\n"
 
 
-def build_group_report(group_name: str, overview_limit: int = 12, extremes_limit: int = 6) -> str:
-    group_strength_columns, group_strength_rows = query_group_strength(group_name)
-    group_overview_columns, group_overview_rows = query_group_overview(group_name)
-    balanced_columns, balanced_rows = query_prediction_extremes(
-        mode="balanced",
-        stage=None,
-        group_name=group_name,
-        limit=extremes_limit,
-    )
-    lopsided_columns, lopsided_rows = query_prediction_extremes(
-        mode="lopsided",
-        stage=None,
-        group_name=group_name,
-        limit=extremes_limit,
-    )
-
+def build_group_report(
+    data: GroupReportData,
+    chart_files: list[tuple[str, Path]] | None = None,
+) -> str:
+    group_strength_columns, group_strength_rows = data.group_strength
+    group_overview_columns, group_overview_rows = data.group_overview
+    balanced_columns, balanced_rows = data.balanced_matches
+    lopsided_columns, lopsided_rows = data.lopsided_matches
     generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
-    if overview_limit < len(group_overview_rows):
-        group_overview_rows = group_overview_rows[:overview_limit]
-
     sections = [
-        f"# Group Research Report: {group_name}\n",
+        f"# Group Research Report: {data.group_name}\n",
         f"Generated at: {generated_at}\n",
+        render_chart_section("Visual Dashboards", chart_files or []),
         render_section(
             "Group Strength",
             group_strength_columns,
             group_strength_rows,
-            f"No group strength data found for {group_name}.",
+            f"No group strength data found for {data.group_name}.",
         ),
         render_section(
             "Fixture Overview And Baseline Predictions",
             group_overview_columns,
             group_overview_rows,
-            f"No fixture overview found for {group_name}.",
+            f"No fixture overview found for {data.group_name}.",
         ),
         render_section(
             "Most Balanced Matches",
             balanced_columns,
             balanced_rows,
-            f"No balanced-match predictions found for {group_name}.",
+            f"No balanced-match predictions found for {data.group_name}.",
         ),
         render_section(
             "Most Lopsided Matches",
             lopsided_columns,
             lopsided_rows,
-            f"No lopsided-match predictions found for {group_name}.",
+            f"No lopsided-match predictions found for {data.group_name}.",
         ),
     ]
     return "\n".join(sections).strip() + "\n"
@@ -366,6 +429,316 @@ def plot_confidence_distribution_chart(
     plt.close(fig)
 
 
+def plot_team_field_benchmark_chart(
+    path: Path,
+    team_name: str,
+    columns: list[str],
+    rows: list[tuple[Any, ...]],
+) -> None:
+    if not rows:
+        return
+
+    row = rows[0]
+    latest_idx = columns.index("latest_elo")
+    avg_idx = columns.index("avg_field_elo")
+    median_idx = columns.index("median_field_elo")
+    max_idx = columns.index("max_field_elo")
+
+    labels = [team_name, "Field Avg", "Field Median", "Field Max"]
+    values = [
+        float(row[latest_idx]),
+        float(row[avg_idx]),
+        float(row[median_idx]),
+        float(row[max_idx]),
+    ]
+    colors = ["#d62828", "#457b9d", "#2a9d8f", "#6d597a"]
+
+    fig, ax = plt.subplots(figsize=(8.8, 5.4))
+    fig.patch.set_facecolor("#f9f4ef")
+    ax.set_facecolor("#fffdf8")
+    bars = ax.bar(labels, values, color=colors, edgecolor="#264653")
+    for bar, value in zip(bars, values, strict=True):
+        ax.text(
+            bar.get_x() + (bar.get_width() / 2),
+            value + 8,
+            f"{value:.1f}",
+            ha="center",
+            fontsize=10,
+            color="#1d3557",
+        )
+
+    ax.set_title(f"{team_name} Vs Field Benchmarks", fontsize=16, pad=14)
+    ax.set_ylabel("Elo")
+    ax.grid(axis="y", linestyle="--", alpha=0.2)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_team_prediction_chart(
+    path: Path,
+    team_name: str,
+    columns: list[str],
+    rows: list[tuple[Any, ...]],
+) -> None:
+    if not rows:
+        return
+
+    home_team_idx = columns.index("home_team")
+    away_team_idx = columns.index("away_team")
+    home_prob_idx = columns.index("home_win_probability")
+    draw_prob_idx = columns.index("draw_probability")
+    away_prob_idx = columns.index("away_win_probability")
+
+    labels: list[str] = []
+    home_probs: list[float] = []
+    draw_probs: list[float] = []
+    away_probs: list[float] = []
+    for row in rows:
+        home_team = str(row[home_team_idx])
+        away_team = str(row[away_team_idx])
+        opponent = away_team if home_team == team_name else home_team
+        venue_tag = "H" if home_team == team_name else "A"
+        labels.append(f"{opponent} ({venue_tag})")
+        home_probs.append(float(row[home_prob_idx]))
+        draw_probs.append(float(row[draw_prob_idx]))
+        away_probs.append(float(row[away_prob_idx]))
+
+    fig, ax = plt.subplots(figsize=(10.2, max(4.8, 1.25 * len(labels))))
+    fig.patch.set_facecolor("#f7f3ed")
+    ax.set_facecolor("#fffdfa")
+    positions = list(range(len(labels)))
+    ax.barh(positions, home_probs, color="#2a9d8f", label="Home Win")
+    ax.barh(positions, draw_probs, left=home_probs, color="#e9c46a", label="Draw")
+    stacked_left = [home + draw for home, draw in zip(home_probs, draw_probs, strict=True)]
+    ax.barh(positions, away_probs, left=stacked_left, color="#e76f51", label="Away Win")
+
+    ax.set_yticks(positions, labels)
+    ax.invert_yaxis()
+    ax.set_xlim(0, 1)
+    ax.set_xlabel("Probability")
+    ax.set_title(f"{team_name} 2026 Match Probability Profile", fontsize=16, pad=14)
+    ax.legend(loc="lower right")
+    ax.grid(axis="x", linestyle="--", alpha=0.2)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_group_team_strength_chart(
+    path: Path,
+    group_name: str,
+    columns: list[str],
+    rows: list[tuple[Any, ...]],
+) -> None:
+    if not rows:
+        return
+
+    team_idx = columns.index("team_name")
+    elo_idx = columns.index("latest_elo")
+    diff_idx = columns.index("elo_vs_group_avg")
+
+    team_names = [str(row[team_idx]) for row in rows]
+    latest_elos = [float(row[elo_idx]) for row in rows]
+    diffs = [float(row[diff_idx]) for row in rows]
+
+    fig, ax = plt.subplots(figsize=(9.4, 5.8))
+    fig.patch.set_facecolor("#f8f5f0")
+    ax.set_facecolor("#fffdf8")
+    bars = ax.bar(team_names, latest_elos, color="#3a86ff", edgecolor="#1d3557")
+    for bar, diff in zip(bars, diffs, strict=True):
+        ax.text(
+            bar.get_x() + (bar.get_width() / 2),
+            bar.get_height() + 8,
+            f"{diff:+.1f}",
+            ha="center",
+            fontsize=10,
+            color="#1d3557",
+        )
+
+    ax.set_title(f"{group_name} Team Strength Snapshot", fontsize=16, pad=14)
+    ax.set_ylabel("Latest Elo")
+    ax.grid(axis="y", linestyle="--", alpha=0.2)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_group_fixture_confidence_chart(
+    path: Path,
+    group_name: str,
+    columns: list[str],
+    rows: list[tuple[Any, ...]],
+) -> None:
+    if not rows:
+        return
+
+    home_team_idx = columns.index("home_team")
+    away_team_idx = columns.index("away_team")
+    home_prob_idx = columns.index("home_win_probability")
+    draw_prob_idx = columns.index("draw_probability")
+    away_prob_idx = columns.index("away_win_probability")
+
+    labels: list[str] = []
+    confidence_gaps: list[float] = []
+    for row in rows:
+        home_prob = float(row[home_prob_idx])
+        draw_prob = float(row[draw_prob_idx])
+        away_prob = float(row[away_prob_idx])
+        sorted_probs = sorted([home_prob, draw_prob, away_prob], reverse=True)
+        confidence_gaps.append(sorted_probs[0] - sorted_probs[1])
+        labels.append(f"{row[home_team_idx]} vs {row[away_team_idx]}")
+
+    fig, ax = plt.subplots(figsize=(10.5, max(4.8, 1.05 * len(labels))))
+    fig.patch.set_facecolor("#f9f6f1")
+    ax.set_facecolor("#fffdf9")
+    bars = ax.barh(labels, confidence_gaps, color="#ff7f51", edgecolor="#5c677d")
+    for bar, gap in zip(bars, confidence_gaps, strict=True):
+        ax.text(
+            bar.get_width() + 0.01,
+            bar.get_y() + (bar.get_height() / 2),
+            f"{gap:.3f}",
+            va="center",
+            fontsize=9,
+            color="#1d3557",
+        )
+
+    ax.invert_yaxis()
+    ax.set_xlim(0, 1)
+    ax.set_xlabel("Confidence Gap")
+    ax.set_title(f"{group_name} Fixture Confidence Gaps", fontsize=16, pad=14)
+    ax.grid(axis="x", linestyle="--", alpha=0.2)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def create_team_chart_files(
+    report_path: Path,
+    asset_dir: Path,
+    data: TeamReportData,
+) -> list[tuple[str, Path]]:
+    chart_paths: list[tuple[str, Path]] = []
+
+    benchmark_chart = asset_dir / f"{slugify(data.team)}_benchmark.png"
+    plot_team_field_benchmark_chart(
+        benchmark_chart,
+        data.team,
+        *data.team_vs_field,
+    )
+    chart_paths.append(
+        (
+            "Team Vs Field Benchmark",
+            relative_markdown_path(report_path, benchmark_chart),
+        )
+    )
+
+    prediction_rows = data.predictions[1]
+    if prediction_rows:
+        prediction_chart = asset_dir / f"{slugify(data.team)}_predictions.png"
+        plot_team_prediction_chart(
+            prediction_chart,
+            data.team,
+            *data.predictions,
+        )
+        chart_paths.append(
+            (
+                "2026 Match Probability Profile",
+                relative_markdown_path(report_path, prediction_chart),
+            )
+        )
+
+    return chart_paths
+
+
+def create_group_chart_files(
+    report_path: Path,
+    asset_dir: Path,
+    data: GroupReportData,
+) -> list[tuple[str, Path]]:
+    chart_paths: list[tuple[str, Path]] = []
+
+    strength_chart = asset_dir / f"{slugify(data.group_name)}_strength.png"
+    plot_group_team_strength_chart(
+        strength_chart,
+        data.group_name,
+        *data.group_strength,
+    )
+    chart_paths.append(
+        (
+            "Group Team Strength Snapshot",
+            relative_markdown_path(report_path, strength_chart),
+        )
+    )
+
+    overview_rows = data.group_overview[1]
+    if overview_rows:
+        fixture_chart = asset_dir / f"{slugify(data.group_name)}_confidence_gaps.png"
+        plot_group_fixture_confidence_chart(
+            fixture_chart,
+            data.group_name,
+            *data.group_overview,
+        )
+        chart_paths.append(
+            (
+                "Fixture Confidence Gaps",
+                relative_markdown_path(report_path, fixture_chart),
+            )
+        )
+
+    return chart_paths
+
+
+def generate_team_report_file(
+    output_path: Path,
+    team: str,
+    fixture_limit: int,
+    form_limit: int,
+    asset_dir: Path | None = None,
+) -> Path:
+    data = load_team_report_data(team, fixture_limit, form_limit)
+    chart_files = create_team_chart_files(
+        output_path,
+        asset_dir or default_report_asset_dir(output_path),
+        data,
+    )
+    write_report(output_path, build_team_report(data, chart_files))
+    return output_path
+
+
+def generate_group_report_file(
+    output_path: Path,
+    group_name: str,
+    overview_limit: int,
+    extremes_limit: int,
+    asset_dir: Path | None = None,
+) -> Path:
+    data = load_group_report_data(group_name, overview_limit, extremes_limit)
+    chart_files = create_group_chart_files(
+        output_path,
+        asset_dir or default_report_asset_dir(output_path),
+        data,
+    )
+    write_report(output_path, build_group_report(data, chart_files))
+    return output_path
+
+
 def build_pack_index(
     generated_at: str,
     group_files: list[tuple[str, Path]],
@@ -432,18 +805,19 @@ def generate_world_cup_pack(
     groups_dir = output_dir / "groups"
     teams_dir = output_dir / "teams"
     charts_dir = output_dir / "charts"
+    group_charts_dir = charts_dir / "groups"
+    team_charts_dir = charts_dir / "teams"
     groups_dir.mkdir(parents=True, exist_ok=True)
 
     group_files: list[tuple[str, Path]] = []
     for group_name in list_group_names():
         group_path = groups_dir / f"{slugify(group_name)}.md"
-        write_report(
+        generate_group_report_file(
             group_path,
-            build_group_report(
-                group_name=group_name,
-                overview_limit=overview_limit,
-                extremes_limit=extremes_limit,
-            ),
+            group_name=group_name,
+            overview_limit=overview_limit,
+            extremes_limit=extremes_limit,
+            asset_dir=group_charts_dir,
         )
         group_files.append((group_name, Path("groups") / group_path.name))
 
@@ -452,13 +826,12 @@ def generate_world_cup_pack(
         teams_dir.mkdir(parents=True, exist_ok=True)
         for team_name in list_world_cup_teams():
             team_path = teams_dir / f"{slugify(team_name)}.md"
-            write_report(
+            generate_team_report_file(
                 team_path,
-                build_team_report(
-                    team=team_name,
-                    fixture_limit=fixture_limit,
-                    form_limit=form_limit,
-                ),
+                team=team_name,
+                fixture_limit=fixture_limit,
+                form_limit=form_limit,
+                asset_dir=team_charts_dir,
             )
             team_files.append((team_name, Path("teams") / team_path.name))
 
@@ -528,7 +901,8 @@ def main() -> None:
 
     if args.command == "team":
         output_path = Path(args.output) if args.output else default_team_report_path(args.team)
-        content = build_team_report(
+        generate_team_report_file(
+            output_path,
             team=args.team,
             fixture_limit=args.fixture_limit,
             form_limit=args.form_limit,
@@ -537,7 +911,8 @@ def main() -> None:
         output_path = (
             Path(args.output) if args.output else default_group_report_path(args.group_name)
         )
-        content = build_group_report(
+        generate_group_report_file(
+            output_path,
             group_name=args.group_name,
             overview_limit=args.overview_limit,
             extremes_limit=args.extremes_limit,
@@ -557,7 +932,6 @@ def main() -> None:
     else:
         raise ValueError(f"Unknown command: {args.command}")
 
-    write_report(output_path, content)
     print(f"wrote: {output_path}")
 
 

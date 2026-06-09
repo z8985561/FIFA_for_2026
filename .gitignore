@@ -12,6 +12,9 @@ data/processed/*
 !data/processed/.gitkeep
 reports/*.json
 reports/*.csv
+reports/*.md
+reports/*_assets/
+reports/world_cup_2026_pack/
 *.pyc
 *.pyo
 *.pyd

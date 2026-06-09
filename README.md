@@ -162,6 +162,8 @@ Default outputs:
 
 - `reports/team_report_<team>.md`
 - `reports/group_report_<group>.md`
+- `reports/team_report_<team>_assets/`
+- `reports/group_report_<group>_assets/`
 
 Batch research pack:
 
@@ -178,4 +180,4 @@ Default pack output:
 - `reports/world_cup_2026_pack/charts/`
 - `reports/world_cup_2026_pack/teams/` when `--include-team-reports` is enabled
 
-The generated `index.md` includes tournament-level summaries for group strength, the most balanced or lopsided group-stage matches, and chart assets embedded from `reports/world_cup_2026_pack/charts/`.
+Single team and group reports also generate embedded chart assets next to the Markdown report. The generated pack `index.md` includes tournament-level summaries for group strength, the most balanced or lopsided group-stage matches, and chart assets embedded from `reports/world_cup_2026_pack/charts/`.
