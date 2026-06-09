@@ -21,10 +21,13 @@ FIFA_RANKINGS_PATH = PROCESSED_DATA_DIR / "fifa_rankings_2026.parquet"
 SQUADS_2026_PATH = PROCESSED_DATA_DIR / "squads_2026.parquet"
 WORLD_CUP_TEAMS_2026_PATH = PROCESSED_DATA_DIR / "world_cup_teams_2026.parquet"
 MATCH_FEATURE_STORE_2026_PATH = FEATURE_DATA_DIR / "match_feature_store_2026.parquet"
+HISTORICAL_MATCH_FEATURE_STORE_PATH = FEATURE_DATA_DIR / "historical_match_feature_store.parquet"
 DATABASE_PATH = PROCESSED_DATA_DIR / "fifa_research.duckdb"
 
 BASELINE_METRICS_PATH = REPORTS_DIR / "baseline_metrics.json"
 BASELINE_PREDICTIONS_PATH = REPORTS_DIR / "world_cup_2026_baseline_predictions.csv"
+ENHANCED_METRICS_PATH = REPORTS_DIR / "enhanced_model_metrics.json"
+ENHANCED_PREDICTIONS_PATH = REPORTS_DIR / "world_cup_2026_enhanced_predictions.csv"
 
 
 def ensure_project_directories() -> None:

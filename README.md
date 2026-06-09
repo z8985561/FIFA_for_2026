@@ -71,6 +71,7 @@ python -m src.postgres_sync
 python -m src.postgres_views
 python -m src.world_cup_identity
 python -m src.feature_store
+python -m src.enhanced_model
 python -m src.postgres_sync
 python -m src.postgres_queries top-rated --limit 10
 python -m src.postgres_queries match-features --team Argentina
@@ -108,6 +109,7 @@ python -m src.data_pipeline
 ```powershell
 .venv\Scripts\Activate.ps1
 python -m src.baseline_model
+python -m src.enhanced_model
 python -m src.postgres_sync
 ```
 
@@ -116,6 +118,22 @@ Outputs are written to:
 - `data/raw/`
 - `data/processed/`
 - `reports/`
+
+## Enhanced Model
+
+Build a historical feature store with recent-form features, train the enhanced model, and
+generate 2026 group-stage predictions:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.enhanced_model
+```
+
+Outputs:
+
+- `data/features/historical_match_feature_store.parquet`
+- `reports/enhanced_model_metrics.json`
+- `reports/world_cup_2026_enhanced_predictions.csv`
 
 ## Postgres Sync
 
