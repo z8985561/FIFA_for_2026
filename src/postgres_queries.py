@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -40,6 +41,15 @@ def print_table(columns: list[str], rows: list[tuple[Any, ...]]) -> None:
     writer = csv.writer(sys.stdout)
     writer.writerow(columns)
     writer.writerows(rows)
+
+
+def write_output(path: str, columns: list[str], rows: list[tuple[Any, ...]]) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8-sig") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(columns)
+        writer.writerows(rows)
 
 
 def query_top_rated(limit: int) -> tuple[list[str], list[tuple[Any, ...]]]:
@@ -226,21 +236,50 @@ def query_prediction_lookup(
     return run_query(sql, tuple(params))
 
 
+def query_group_overview(group_name: str) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    sql = f"""
+        SELECT
+            p.match_no,
+            p.group_name,
+            p.date_et,
+            p.home_team,
+            p.away_team,
+            ROUND(hr.latest_elo::numeric, 2) AS home_team_elo,
+            ROUND(ar.latest_elo::numeric, 2) AS away_team_elo,
+            p.home_win_probability,
+            p.draw_probability,
+            p.away_win_probability,
+            p.predicted_outcome
+        FROM {qualified_name(schema, "baseline_prediction_summary")} AS p
+        LEFT JOIN {qualified_name(schema, "ratings")} AS hr
+            ON p.home_team = hr.team_name
+        LEFT JOIN {qualified_name(schema, "ratings")} AS ar
+            ON p.away_team = ar.team_name
+        WHERE p.group_name = %s
+        ORDER BY p.match_no
+    """
+    return run_query(sql, (group_name,))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run common Postgres research queries.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     top_rated = subparsers.add_parser("top-rated", help="Show top-rated teams by latest Elo.")
     top_rated.add_argument("--limit", type=int, default=10)
+    top_rated.add_argument("--output")
 
     team_history = subparsers.add_parser("team-history", help="Show recent matches for a team.")
     team_history.add_argument("--team", required=True)
     team_history.add_argument("--limit", type=int, default=10)
+    team_history.add_argument("--output")
 
     fixtures = subparsers.add_parser("fixtures", help="Show known 2026 fixtures.")
     fixtures.add_argument("--stage")
     fixtures.add_argument("--group-name")
     fixtures.add_argument("--limit", type=int, default=20)
+    fixtures.add_argument("--output")
 
     head_to_head = subparsers.add_parser(
         "head-to-head",
@@ -248,15 +287,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     head_to_head.add_argument("--team-a", required=True)
     head_to_head.add_argument("--team-b", required=True)
+    head_to_head.add_argument("--output")
 
     competition = subparsers.add_parser(
         "competition-summary",
         help="Show aggregate metrics for a competition type.",
     )
     competition.add_argument("--competition-type", required=True)
+    competition.add_argument("--output")
 
     team_summary = subparsers.add_parser("team-summary", help="Show aggregate summary for a team.")
     team_summary.add_argument("--team", required=True)
+    team_summary.add_argument("--output")
 
     prediction_query = subparsers.add_parser(
         "prediction-query",
@@ -266,6 +308,14 @@ def build_parser() -> argparse.ArgumentParser:
     prediction_query.add_argument("--stage")
     prediction_query.add_argument("--group-name")
     prediction_query.add_argument("--limit", type=int, default=20)
+    prediction_query.add_argument("--output")
+
+    group_overview = subparsers.add_parser(
+        "group-overview",
+        help="Show a World Cup group with Elo and baseline probabilities.",
+    )
+    group_overview.add_argument("--group-name", required=True)
+    group_overview.add_argument("--output")
 
     return parser
 
@@ -293,10 +343,17 @@ def main() -> None:
             args.group_name,
             args.limit,
         )
+    elif args.command == "group-overview":
+        columns, rows = query_group_overview(args.group_name)
     else:
         raise ValueError(f"Unknown command: {args.command}")
 
-    print_table(columns, rows)
+    output_path = getattr(args, "output", None)
+    if output_path:
+        write_output(output_path, columns, rows)
+        print(f"wrote: {output_path}")
+    else:
+        print_table(columns, rows)
 
 
 if __name__ == "__main__":

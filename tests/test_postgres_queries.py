@@ -29,3 +29,12 @@ def test_parser_accepts_prediction_query_command() -> None:
     assert args.command == "prediction-query"
     assert args.team == "Brazil"
     assert args.limit == 2
+
+
+def test_parser_accepts_group_overview_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["group-overview", "--group-name", "Group C", "--output", "out.csv"])
+
+    assert args.command == "group-overview"
+    assert args.group_name == "Group C"
+    assert args.output == "out.csv"

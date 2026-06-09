@@ -68,6 +68,7 @@ python -m src.postgres_views
 python -m src.postgres_queries top-rated --limit 10
 python -m src.postgres_queries team-summary --team Argentina
 python -m src.postgres_queries prediction-query --team Brazil --limit 5
+python -m src.postgres_queries group-overview --group-name "Group C"
 python -m pytest
 python -m ruff check .
 python -m jupyter lab
@@ -131,4 +132,6 @@ python -m src.postgres_queries head-to-head --team-a Brazil --team-b Argentina
 python -m src.postgres_queries competition-summary --competition-type world_cup
 python -m src.postgres_queries team-summary --team Argentina
 python -m src.postgres_queries prediction-query --group-name "Group C" --limit 6
+python -m src.postgres_queries group-overview --group-name "Group C"
+python -m src.postgres_queries top-rated --limit 20 --output reports/top_rated.csv
 ```
