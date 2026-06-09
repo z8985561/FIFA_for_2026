@@ -16,11 +16,15 @@ import matplotlib.pyplot as plt
 
 from .postgres_queries import (
     qualified_name,
+    query_group_difficulty,
     query_group_overview,
+    query_group_profiles,
     query_group_strength,
     query_prediction_extremes,
     query_prediction_lookup,
     query_recent_form,
+    query_squad_composition,
+    query_team_schedule_difficulty,
     query_team_summary,
     query_team_vs_field,
     run_query,
@@ -34,6 +38,8 @@ class TeamReportData:
     team: str
     team_summary: tuple[list[str], list[tuple[Any, ...]]]
     team_vs_field: tuple[list[str], list[tuple[Any, ...]]]
+    squad_composition: tuple[list[str], list[tuple[Any, ...]]]
+    schedule_difficulty: tuple[list[str], list[tuple[Any, ...]]]
     recent_form: tuple[list[str], list[tuple[Any, ...]]]
     predictions: tuple[list[str], list[tuple[Any, ...]]]
 
@@ -42,6 +48,8 @@ class TeamReportData:
 class GroupReportData:
     group_name: str
     group_strength: tuple[list[str], list[tuple[Any, ...]]]
+    group_profiles: tuple[list[str], list[tuple[Any, ...]]]
+    group_difficulty: tuple[list[str], list[tuple[Any, ...]]]
     group_overview: tuple[list[str], list[tuple[Any, ...]]]
     balanced_matches: tuple[list[str], list[tuple[Any, ...]]]
     lopsided_matches: tuple[list[str], list[tuple[Any, ...]]]
@@ -117,6 +125,8 @@ def load_team_report_data(team: str, fixture_limit: int = 8, form_limit: int = 8
         team=team,
         team_summary=query_team_summary(team),
         team_vs_field=query_team_vs_field(team),
+        squad_composition=query_squad_composition(team),
+        schedule_difficulty=query_team_schedule_difficulty(team),
         recent_form=query_recent_form(team, form_limit),
         predictions=query_prediction_lookup(
             team=team,
@@ -140,6 +150,8 @@ def load_group_report_data(
     return GroupReportData(
         group_name=group_name,
         group_strength=query_group_strength(group_name),
+        group_profiles=query_group_profiles(group_name),
+        group_difficulty=query_group_difficulty(limit=12, group_name=group_name),
         group_overview=group_overview,
         balanced_matches=query_prediction_extremes(
             mode="balanced",
@@ -162,6 +174,8 @@ def build_team_report(
 ) -> str:
     team_summary_columns, team_summary_rows = data.team_summary
     team_vs_field_columns, team_vs_field_rows = data.team_vs_field
+    squad_composition_columns, squad_composition_rows = data.squad_composition
+    schedule_columns, schedule_rows = data.schedule_difficulty
     recent_form_columns, recent_form_rows = data.recent_form
     prediction_columns, prediction_rows = data.predictions
     matches_sampled = recent_form_rows[0][1] if recent_form_rows else 0
@@ -181,6 +195,18 @@ def build_team_report(
             team_vs_field_columns,
             team_vs_field_rows,
             f"No team-vs-field comparison found for {data.team}.",
+        ),
+        render_section(
+            "Squad Composition",
+            squad_composition_columns,
+            squad_composition_rows,
+            f"No squad composition found for {data.team}.",
+        ),
+        render_section(
+            "Schedule Difficulty",
+            schedule_columns,
+            schedule_rows,
+            f"No schedule difficulty rows found for {data.team}.",
         ),
         render_section(
             f"Recent Form Last {matches_sampled} Matches",
@@ -203,6 +229,8 @@ def build_group_report(
     chart_files: list[tuple[str, Path]] | None = None,
 ) -> str:
     group_strength_columns, group_strength_rows = data.group_strength
+    group_profiles_columns, group_profiles_rows = data.group_profiles
+    group_difficulty_columns, group_difficulty_rows = data.group_difficulty
     group_overview_columns, group_overview_rows = data.group_overview
     balanced_columns, balanced_rows = data.balanced_matches
     lopsided_columns, lopsided_rows = data.lopsided_matches
@@ -216,6 +244,18 @@ def build_group_report(
             group_strength_columns,
             group_strength_rows,
             f"No group strength data found for {data.group_name}.",
+        ),
+        render_section(
+            "Group Difficulty Context",
+            group_difficulty_columns,
+            group_difficulty_rows,
+            f"No group difficulty context found for {data.group_name}.",
+        ),
+        render_section(
+            "Group Team Profiles",
+            group_profiles_columns,
+            group_profiles_rows,
+            f"No group profile rows found for {data.group_name}.",
         ),
         render_section(
             "Fixture Overview And Baseline Predictions",

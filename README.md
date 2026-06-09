@@ -74,6 +74,9 @@ python -m src.postgres_sync
 python -m src.postgres_queries top-rated --limit 10
 python -m src.postgres_queries world-cup-teams --limit 10
 python -m src.postgres_queries squad --team Argentina
+python -m src.postgres_queries squad-composition --team Argentina
+python -m src.postgres_queries team-schedule-difficulty --team Argentina
+python -m src.postgres_queries group-difficulty --limit 12
 python -m src.postgres_queries team-summary --team Argentina
 python -m src.postgres_queries prediction-query --team Brazil --limit 5
 python -m src.postgres_queries group-overview --group-name "Group C"
@@ -170,6 +173,9 @@ python -m src.postgres_queries world-cup-teams --group-name "Group C"
 python -m src.postgres_queries squad --team Argentina --position FW
 python -m src.postgres_queries squad-summary --team Argentina
 python -m src.postgres_queries group-profiles --group-name "Group C"
+python -m src.postgres_queries squad-composition --team Argentina
+python -m src.postgres_queries team-schedule-difficulty --team Argentina
+python -m src.postgres_queries group-difficulty --limit 12
 python -m src.research_report team --team Argentina --output reports/team_report_argentina.md
 python -m src.research_report group --group-name "Group C" --output reports/group_report_group_c.md
 python -m src.research_report world-cup-pack --output-dir reports/world_cup_2026_pack

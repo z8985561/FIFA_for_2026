@@ -605,6 +605,119 @@ def query_group_profiles(group_name: str) -> tuple[list[str], list[tuple[Any, ..
     return run_query(sql, (group_name,))
 
 
+def query_squad_composition(team: str) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    sql = f"""
+        SELECT
+            team_name,
+            group_name,
+            COUNT(*) AS squad_size,
+            ROUND(AVG(age)::numeric, 2) AS average_age,
+            ROUND(AVG(caps)::numeric, 2) AS average_caps,
+            SUM(caps) AS total_caps,
+            SUM(goals) AS total_goals,
+            SUM(CASE WHEN position = 'GK' THEN 1 ELSE 0 END) AS goalkeepers,
+            SUM(CASE WHEN position = 'DF' THEN 1 ELSE 0 END) AS defenders,
+            SUM(CASE WHEN position = 'MF' THEN 1 ELSE 0 END) AS midfielders,
+            SUM(CASE WHEN position = 'FW' THEN 1 ELSE 0 END) AS forwards,
+            MIN(age) AS youngest_age,
+            MAX(age) AS oldest_age
+        FROM {qualified_name(schema, "squads_2026")}
+        WHERE team_name = %s
+        GROUP BY team_name, group_name
+    """
+    return run_query(sql, (team,))
+
+
+def query_team_schedule_difficulty(team: str) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    sql = f"""
+        WITH team_schedule AS (
+            SELECT
+                f.match_no,
+                f.stage,
+                f.group_name,
+                f.date_et,
+                CASE
+                    WHEN f.home_team = %s THEN f.away_team
+                    ELSE f.home_team
+                END AS opponent_team,
+                CASE
+                    WHEN f.home_team = %s THEN 'home'
+                    ELSE 'away'
+                END AS team_side
+            FROM {qualified_name(schema, "fixtures_2026")} AS f
+            WHERE f.home_team = %s OR f.away_team = %s
+        )
+        SELECT
+            %s AS team_name,
+            s.match_no,
+            s.stage,
+            s.group_name,
+            s.date_et,
+            s.team_side,
+            s.opponent_team,
+            p.fifa_rank AS opponent_fifa_rank,
+            ROUND(p.latest_elo::numeric, 2) AS opponent_latest_elo,
+            p.squad_total_caps AS opponent_squad_total_caps,
+            ROUND(AVG(p.latest_elo) OVER ()::numeric, 2) AS avg_opponent_elo,
+            ROUND(AVG(p.fifa_rank) OVER ()::numeric, 2) AS avg_opponent_fifa_rank
+        FROM team_schedule AS s
+        LEFT JOIN {qualified_name(schema, "world_cup_team_profiles")} AS p
+            ON s.opponent_team = p.team_name
+        ORDER BY s.match_no
+    """
+    return run_query(sql, (team, team, team, team, team))
+
+
+def query_group_difficulty(
+    limit: int,
+    group_name: str | None = None,
+) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    where_clause = "WHERE group_name = %s" if group_name else ""
+    params: tuple[Any, ...] = (group_name, limit) if group_name else (limit,)
+    sql = f"""
+        WITH grouped AS (
+            SELECT
+                group_name,
+                ROUND(AVG(latest_elo)::numeric, 2) AS avg_group_elo,
+                ROUND(AVG(fifa_rank)::numeric, 2) AS avg_group_fifa_rank,
+                ROUND(AVG(squad_average_age)::numeric, 2) AS avg_squad_age,
+                ROUND(AVG(squad_total_caps)::numeric, 2) AS avg_squad_caps,
+                ROUND((MAX(latest_elo) - MIN(latest_elo))::numeric, 2) AS elo_spread
+            FROM {qualified_name(schema, "world_cup_team_profiles")}
+            GROUP BY group_name
+        ),
+        ranked AS (
+            SELECT
+                DENSE_RANK() OVER (
+                    ORDER BY avg_group_elo DESC NULLS LAST, avg_group_fifa_rank ASC NULLS LAST
+                ) AS difficulty_rank,
+                group_name,
+                avg_group_elo,
+                avg_group_fifa_rank,
+                avg_squad_age,
+                avg_squad_caps,
+                elo_spread
+            FROM grouped
+        )
+        SELECT
+            difficulty_rank,
+            group_name,
+            avg_group_elo,
+            avg_group_fifa_rank,
+            avg_squad_age,
+            avg_squad_caps,
+            elo_spread
+        FROM ranked
+        {where_clause}
+        ORDER BY difficulty_rank, group_name
+        LIMIT %s
+    """
+    return run_query(sql, params)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run common Postgres research queries.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -727,6 +840,27 @@ def build_parser() -> argparse.ArgumentParser:
     group_profiles.add_argument("--group-name", required=True)
     group_profiles.add_argument("--output")
 
+    squad_composition = subparsers.add_parser(
+        "squad-composition",
+        help="Show squad age, caps, and position structure for one team.",
+    )
+    squad_composition.add_argument("--team", required=True)
+    squad_composition.add_argument("--output")
+
+    team_schedule_difficulty = subparsers.add_parser(
+        "team-schedule-difficulty",
+        help="Show a team's 2026 opponent strength profile.",
+    )
+    team_schedule_difficulty.add_argument("--team", required=True)
+    team_schedule_difficulty.add_argument("--output")
+
+    group_difficulty = subparsers.add_parser(
+        "group-difficulty",
+        help="Compare World Cup group difficulty using rank and Elo context.",
+    )
+    group_difficulty.add_argument("--limit", type=int, default=12)
+    group_difficulty.add_argument("--output")
+
     return parser
 
 
@@ -780,6 +914,12 @@ def main() -> None:
         columns, rows = query_squad_summary(args.team)
     elif args.command == "group-profiles":
         columns, rows = query_group_profiles(args.group_name)
+    elif args.command == "squad-composition":
+        columns, rows = query_squad_composition(args.team)
+    elif args.command == "team-schedule-difficulty":
+        columns, rows = query_team_schedule_difficulty(args.team)
+    elif args.command == "group-difficulty":
+        columns, rows = query_group_difficulty(args.limit)
     else:
         raise ValueError(f"Unknown command: {args.command}")
 

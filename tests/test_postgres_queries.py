@@ -121,3 +121,27 @@ def test_parser_accepts_group_profiles_command() -> None:
     assert args.command == "group-profiles"
     assert args.group_name == "Group C"
     assert args.output == "out.csv"
+
+
+def test_parser_accepts_squad_composition_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["squad-composition", "--team", "Argentina"])
+
+    assert args.command == "squad-composition"
+    assert args.team == "Argentina"
+
+
+def test_parser_accepts_team_schedule_difficulty_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["team-schedule-difficulty", "--team", "Argentina"])
+
+    assert args.command == "team-schedule-difficulty"
+    assert args.team == "Argentina"
+
+
+def test_parser_accepts_group_difficulty_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["group-difficulty", "--limit", "6"])
+
+    assert args.command == "group-difficulty"
+    assert args.limit == 6
