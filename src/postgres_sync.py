@@ -13,6 +13,7 @@ from .data_pipeline import prepare_research_data
 from .enhanced_features import enhanced_feature_columns
 from .enhanced_model import prepare_enhanced_outputs
 from .feature_store import prepare_match_feature_store
+from .goal_form_features import prepare_goal_form_features
 from .project_paths import (
     BASELINE_PREDICTIONS_PATH,
     DATABASE_PATH,
@@ -25,6 +26,7 @@ from .project_paths import (
     RATINGS_PATH,
     SCORELINE_ANALYSIS_PATH,
     SQUADS_2026_PATH,
+    TEAM_GOAL_FORM_FEATURES_PATH,
     TEAMS_PATH,
     WORLD_CUP_TEAMS_2026_PATH,
 )
@@ -89,6 +91,30 @@ SCORELINE_ANALYSIS_COLUMNS = [
     "scoreline_rank",
     "scoreline",
     "scoreline_probability",
+]
+
+TEAM_GOAL_FORM_COLUMNS = [
+    "team_name",
+    "as_of_date",
+    "matches_played",
+    "goals_for_last_5",
+    "goals_against_last_5",
+    "goal_diff_last_5",
+    "clean_sheet_rate_last_5",
+    "btts_rate_last_5",
+    "avg_total_goals_last_5",
+    "goals_for_last_10",
+    "goals_against_last_10",
+    "goal_diff_last_10",
+    "clean_sheet_rate_last_10",
+    "btts_rate_last_10",
+    "avg_total_goals_last_10",
+    "goals_for_last_20",
+    "goals_against_last_20",
+    "goal_diff_last_20",
+    "clean_sheet_rate_last_20",
+    "btts_rate_last_20",
+    "avg_total_goals_last_20",
 ]
 
 
@@ -198,6 +224,7 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
         "squad_average_age",
         "squad_total_caps",
     ],
+    "team_goal_form_features": TEAM_GOAL_FORM_COLUMNS,
     "match_feature_store_2026": [
         "match_no",
         "stage",
@@ -292,6 +319,7 @@ def ensure_processed_data() -> None:
         FIFA_RANKINGS_PATH,
         SQUADS_2026_PATH,
         WORLD_CUP_TEAMS_2026_PATH,
+        TEAM_GOAL_FORM_FEATURES_PATH,
         MATCH_FEATURE_STORE_2026_PATH,
         HISTORICAL_MATCH_FEATURE_STORE_PATH,
         ENHANCED_PREDICTIONS_PATH,
@@ -300,6 +328,7 @@ def ensure_processed_data() -> None:
     if any(not path.exists() for path in required_paths):
         prepare_research_data()
         prepare_world_cup_identity_data()
+        prepare_goal_form_features()
         prepare_match_feature_store()
         prepare_enhanced_outputs()
         prepare_scoreline_analysis()
@@ -322,6 +351,7 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
     rankings_table = qualified_table(schema, "fifa_rankings_2026")
     squads_table = qualified_table(schema, "squads_2026")
     world_cup_teams_table = qualified_table(schema, "world_cup_teams_2026")
+    team_goal_form_table = qualified_table(schema, "team_goal_form_features")
     match_feature_store_table = qualified_table(schema, "match_feature_store_2026")
     historical_feature_store_table = qualified_table(schema, "historical_match_feature_store")
     enhanced_predictions_table = qualified_table(schema, "enhanced_predictions")
@@ -457,6 +487,31 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {team_goal_form_table} (
+            team_name TEXT PRIMARY KEY,
+            as_of_date DATE NOT NULL,
+            matches_played BIGINT NOT NULL,
+            goals_for_last_5 DOUBLE PRECISION NOT NULL,
+            goals_against_last_5 DOUBLE PRECISION NOT NULL,
+            goal_diff_last_5 DOUBLE PRECISION NOT NULL,
+            clean_sheet_rate_last_5 DOUBLE PRECISION NOT NULL,
+            btts_rate_last_5 DOUBLE PRECISION NOT NULL,
+            avg_total_goals_last_5 DOUBLE PRECISION NOT NULL,
+            goals_for_last_10 DOUBLE PRECISION NOT NULL,
+            goals_against_last_10 DOUBLE PRECISION NOT NULL,
+            goal_diff_last_10 DOUBLE PRECISION NOT NULL,
+            clean_sheet_rate_last_10 DOUBLE PRECISION NOT NULL,
+            btts_rate_last_10 DOUBLE PRECISION NOT NULL,
+            avg_total_goals_last_10 DOUBLE PRECISION NOT NULL,
+            goals_for_last_20 DOUBLE PRECISION NOT NULL,
+            goals_against_last_20 DOUBLE PRECISION NOT NULL,
+            goal_diff_last_20 DOUBLE PRECISION NOT NULL,
+            clean_sheet_rate_last_20 DOUBLE PRECISION NOT NULL,
+            btts_rate_last_20 DOUBLE PRECISION NOT NULL,
+            avg_total_goals_last_20 DOUBLE PRECISION NOT NULL
+        )
+        """,
+        f"""
         CREATE TABLE IF NOT EXISTS {match_feature_store_table} (
             match_no BIGINT PRIMARY KEY,
             stage TEXT NOT NULL,
@@ -588,6 +643,10 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         ON {world_cup_teams_table} (group_name)
         """,
         f"""
+        CREATE INDEX IF NOT EXISTS idx_team_goal_form_as_of_date
+        ON {team_goal_form_table} (as_of_date)
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_match_feature_store_group
         ON {match_feature_store_table} (group_name)
         """,
@@ -628,6 +687,7 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         "fifa_rankings_2026": pd.read_parquet(FIFA_RANKINGS_PATH),
         "squads_2026": pd.read_parquet(SQUADS_2026_PATH),
         "world_cup_teams_2026": pd.read_parquet(WORLD_CUP_TEAMS_2026_PATH),
+        "team_goal_form_features": pd.read_parquet(TEAM_GOAL_FORM_FEATURES_PATH),
         "match_feature_store_2026": pd.read_parquet(MATCH_FEATURE_STORE_2026_PATH),
         "historical_match_feature_store": pd.read_parquet(HISTORICAL_MATCH_FEATURE_STORE_PATH),
         "enhanced_predictions": (
@@ -668,6 +728,7 @@ def truncate_tables(connection: psycopg.Connection, schema: str) -> None:
         "fifa_rankings_2026",
         "squads_2026",
         "world_cup_teams_2026",
+        "team_goal_form_features",
         "match_feature_store_2026",
         "historical_match_feature_store",
         "enhanced_predictions",

@@ -402,6 +402,36 @@ def query_recent_form(team: str, limit: int) -> tuple[list[str], list[tuple[Any,
     return run_query(sql, params)
 
 
+def query_goal_form(team: str | None, limit: int) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    where_clause = "WHERE team_name = %s" if team else ""
+    params: list[Any] = [team] if team else []
+    sql = f"""
+        SELECT
+            team_name,
+            as_of_date,
+            matches_played,
+            goals_for_last_5,
+            goals_against_last_5,
+            goal_diff_last_5,
+            clean_sheet_rate_last_5,
+            btts_rate_last_5,
+            avg_total_goals_last_5,
+            goals_for_last_10,
+            goals_against_last_10,
+            goal_diff_last_10,
+            clean_sheet_rate_last_10,
+            btts_rate_last_10,
+            avg_total_goals_last_10
+        FROM {qualified_name(schema, "team_goal_form_snapshot")}
+        {where_clause}
+        ORDER BY goal_diff_last_10 DESC, goals_for_last_10 DESC, team_name
+        LIMIT %s
+    """
+    params.append(limit)
+    return run_query(sql, tuple(params))
+
+
 def query_team_vs_field(team: str) -> tuple[list[str], list[tuple[Any, ...]]]:
     schema = load_postgres_view_config().schema
     sql = f"""
@@ -943,6 +973,14 @@ def build_parser() -> argparse.ArgumentParser:
     recent_form.add_argument("--limit", type=int, default=10)
     recent_form.add_argument("--output")
 
+    goal_form = subparsers.add_parser(
+        "goal-form",
+        help="Show latest team goal-form features from historical matches.",
+    )
+    goal_form.add_argument("--team")
+    goal_form.add_argument("--limit", type=int, default=20)
+    goal_form.add_argument("--output")
+
     team_vs_field = subparsers.add_parser(
         "team-vs-field",
         help="Compare a team's profile against the full field.",
@@ -1076,6 +1114,8 @@ def main() -> None:
         columns, rows = query_group_overview(args.group_name)
     elif args.command == "recent-form":
         columns, rows = query_recent_form(args.team, args.limit)
+    elif args.command == "goal-form":
+        columns, rows = query_goal_form(args.team, args.limit)
     elif args.command == "team-vs-field":
         columns, rows = query_team_vs_field(args.team)
     elif args.command == "group-strength":

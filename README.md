@@ -72,6 +72,7 @@ python -m src.baseline_model
 python -m src.postgres_sync
 python -m src.postgres_views
 python -m src.world_cup_identity
+python -m src.goal_form_features
 python -m src.feature_store
 python -m src.enhanced_model
 python -m src.scoreline_model
@@ -84,6 +85,7 @@ python -m src.postgres_queries scoreline-query --match-no 1 --limit 10
 python -m src.postgres_queries world-cup-teams --limit 10
 python -m src.postgres_queries squad --team Argentina
 python -m src.postgres_queries squad-composition --team Argentina
+python -m src.postgres_queries goal-form --team Argentina
 python -m src.postgres_queries team-schedule-difficulty --team Argentina
 python -m src.postgres_queries group-difficulty --limit 12
 python -m src.postgres_queries team-summary --team Argentina
@@ -244,6 +246,7 @@ python -m src.postgres_queries scoreline-query --group-name "Group A" --limit 20
 python -m src.postgres_queries group-overview --group-name "Group C"
 python -m src.postgres_queries top-rated --limit 20 --output reports/top_rated.csv
 python -m src.postgres_queries recent-form --team Brazil --limit 8
+python -m src.postgres_queries goal-form --team Brazil --limit 1
 python -m src.postgres_queries team-vs-field --team Argentina
 python -m src.postgres_queries group-strength --group-name "Group C"
 python -m src.postgres_queries prediction-extremes --mode lopsided --stage "Group Stage" --limit 6

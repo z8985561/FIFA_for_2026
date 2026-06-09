@@ -15,6 +15,7 @@ def test_view_sql_contains_expected_view_names() -> None:
         "world_cup_team_profiles",
         "squad_summary",
         "rankings_snapshot",
+        "team_goal_form_snapshot",
     }
 
 

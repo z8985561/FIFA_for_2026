@@ -69,6 +69,15 @@ def test_parser_accepts_recent_form_command() -> None:
     assert args.limit == 8
 
 
+def test_parser_accepts_goal_form_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["goal-form", "--team", "Brazil", "--limit", "1"])
+
+    assert args.command == "goal-form"
+    assert args.team == "Brazil"
+    assert args.limit == 1
+
+
 def test_parser_accepts_team_vs_field_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["team-vs-field", "--team", "Argentina"])

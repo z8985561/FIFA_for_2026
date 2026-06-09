@@ -107,6 +107,31 @@ SCHEMA_SQL: dict[str, str] = {
             squad_total_caps BIGINT
         )
     """,
+    "team_goal_form_features": """
+        CREATE OR REPLACE TABLE team_goal_form_features (
+            team_name VARCHAR,
+            as_of_date DATE,
+            matches_played BIGINT,
+            goals_for_last_5 DOUBLE,
+            goals_against_last_5 DOUBLE,
+            goal_diff_last_5 DOUBLE,
+            clean_sheet_rate_last_5 DOUBLE,
+            btts_rate_last_5 DOUBLE,
+            avg_total_goals_last_5 DOUBLE,
+            goals_for_last_10 DOUBLE,
+            goals_against_last_10 DOUBLE,
+            goal_diff_last_10 DOUBLE,
+            clean_sheet_rate_last_10 DOUBLE,
+            btts_rate_last_10 DOUBLE,
+            avg_total_goals_last_10 DOUBLE,
+            goals_for_last_20 DOUBLE,
+            goals_against_last_20 DOUBLE,
+            goal_diff_last_20 DOUBLE,
+            clean_sheet_rate_last_20 DOUBLE,
+            btts_rate_last_20 DOUBLE,
+            avg_total_goals_last_20 DOUBLE
+        )
+    """,
     "match_feature_store_2026": """
         CREATE OR REPLACE TABLE match_feature_store_2026 (
             match_no BIGINT,

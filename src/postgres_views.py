@@ -43,6 +43,7 @@ def view_sql(schema: str) -> dict[str, str]:
     scoreline_analysis = qualified_table(schema, "scoreline_analysis")
     rankings = qualified_table(schema, "fifa_rankings_2026")
     squads = qualified_table(schema, "squads_2026")
+    team_goal_form = qualified_table(schema, "team_goal_form_features")
     world_cup_teams = qualified_table(schema, "world_cup_teams_2026")
     qs = quote_identifier(schema)
 
@@ -205,6 +206,32 @@ def view_sql(schema: str) -> dict[str, str]:
                 r.points
             FROM {rankings} AS r
             ORDER BY r.fifa_rank, r.team_name
+        """,
+        "team_goal_form_snapshot": f"""
+            CREATE OR REPLACE VIEW {qs}.team_goal_form_snapshot AS
+            SELECT
+                team_name,
+                as_of_date,
+                matches_played,
+                ROUND(goals_for_last_5::numeric, 3) AS goals_for_last_5,
+                ROUND(goals_against_last_5::numeric, 3) AS goals_against_last_5,
+                ROUND(goal_diff_last_5::numeric, 3) AS goal_diff_last_5,
+                ROUND(clean_sheet_rate_last_5::numeric, 3) AS clean_sheet_rate_last_5,
+                ROUND(btts_rate_last_5::numeric, 3) AS btts_rate_last_5,
+                ROUND(avg_total_goals_last_5::numeric, 3) AS avg_total_goals_last_5,
+                ROUND(goals_for_last_10::numeric, 3) AS goals_for_last_10,
+                ROUND(goals_against_last_10::numeric, 3) AS goals_against_last_10,
+                ROUND(goal_diff_last_10::numeric, 3) AS goal_diff_last_10,
+                ROUND(clean_sheet_rate_last_10::numeric, 3) AS clean_sheet_rate_last_10,
+                ROUND(btts_rate_last_10::numeric, 3) AS btts_rate_last_10,
+                ROUND(avg_total_goals_last_10::numeric, 3) AS avg_total_goals_last_10,
+                ROUND(goals_for_last_20::numeric, 3) AS goals_for_last_20,
+                ROUND(goals_against_last_20::numeric, 3) AS goals_against_last_20,
+                ROUND(goal_diff_last_20::numeric, 3) AS goal_diff_last_20,
+                ROUND(clean_sheet_rate_last_20::numeric, 3) AS clean_sheet_rate_last_20,
+                ROUND(btts_rate_last_20::numeric, 3) AS btts_rate_last_20,
+                ROUND(avg_total_goals_last_20::numeric, 3) AS avg_total_goals_last_20
+            FROM {team_goal_form}
         """,
     }
 
