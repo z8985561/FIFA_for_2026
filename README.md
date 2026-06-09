@@ -64,6 +64,10 @@ python -m pip list
 python -m src.data_pipeline
 python -m src.baseline_model
 python -m src.postgres_sync
+python -m src.postgres_views
+python -m src.postgres_queries top-rated --limit 10
+python -m src.postgres_queries team-summary --team Argentina
+python -m src.postgres_queries prediction-query --team Brazil --limit 5
 python -m pytest
 python -m ruff check .
 python -m jupyter lab
@@ -104,3 +108,27 @@ python -m src.postgres_sync
 ```
 
 Default connection settings are read from `.env`.
+
+## Postgres Views
+
+Create reusable SQL views in Postgres after syncing data:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.postgres_views
+```
+
+## Postgres Query CLI
+
+Run common research queries without writing SQL manually:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.postgres_queries top-rated --limit 10
+python -m src.postgres_queries team-history --team Argentina --limit 5
+python -m src.postgres_queries fixtures --stage "Group Stage" --limit 8
+python -m src.postgres_queries head-to-head --team-a Brazil --team-b Argentina
+python -m src.postgres_queries competition-summary --competition-type world_cup
+python -m src.postgres_queries team-summary --team Argentina
+python -m src.postgres_queries prediction-query --group-name "Group C" --limit 6
+```

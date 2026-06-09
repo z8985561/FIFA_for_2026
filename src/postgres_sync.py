@@ -10,7 +10,14 @@ import pandas as pd
 import psycopg
 
 from .data_pipeline import prepare_research_data
-from .project_paths import DATABASE_PATH, FIXTURES_PATH, MATCHES_PATH, RATINGS_PATH, TEAMS_PATH
+from .project_paths import (
+    BASELINE_PREDICTIONS_PATH,
+    DATABASE_PATH,
+    FIXTURES_PATH,
+    MATCHES_PATH,
+    RATINGS_PATH,
+    TEAMS_PATH,
+)
 
 DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 DEFAULT_SCHEMA = "research"
@@ -64,6 +71,23 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
         "venue",
         "city",
         "neutral",
+    ],
+    "baseline_predictions": [
+        "match_no",
+        "stage",
+        "group_name",
+        "date_et",
+        "time_et",
+        "date_bj",
+        "time_bj",
+        "home_team",
+        "away_team",
+        "venue",
+        "city",
+        "away_win_probability",
+        "draw_probability",
+        "home_win_probability",
+        "predicted_outcome",
     ],
 }
 
@@ -127,6 +151,7 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
     teams_table = qualified_table(schema, "teams")
     ratings_table = qualified_table(schema, "ratings")
     fixtures_table = qualified_table(schema, "fixtures_2026")
+    predictions_table = qualified_table(schema, "baseline_predictions")
     quoted_schema = quote_identifier(schema)
 
     return (
@@ -188,6 +213,25 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {predictions_table} (
+            match_no BIGINT PRIMARY KEY,
+            stage TEXT NOT NULL,
+            group_name TEXT,
+            date_et DATE NOT NULL,
+            time_et TEXT NOT NULL,
+            date_bj DATE NOT NULL,
+            time_bj TEXT NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            venue TEXT,
+            city TEXT,
+            away_win_probability DOUBLE PRECISION NOT NULL,
+            draw_probability DOUBLE PRECISION NOT NULL,
+            home_win_probability DOUBLE PRECISION NOT NULL,
+            predicted_outcome TEXT NOT NULL
+        )
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_matches_match_date
         ON {matches_table} (match_date)
         """,
@@ -203,6 +247,10 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         CREATE INDEX IF NOT EXISTS idx_fixtures_stage
         ON {fixtures_table} (stage)
         """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_predictions_stage
+        ON {predictions_table} (stage)
+        """,
     )
 
 
@@ -214,11 +262,17 @@ def create_schema_objects(connection: psycopg.Connection, schema: str) -> None:
 
 
 def read_processed_frames() -> dict[str, pd.DataFrame]:
+    baseline_predictions = (
+        pd.read_csv(BASELINE_PREDICTIONS_PATH)
+        if BASELINE_PREDICTIONS_PATH.exists()
+        else pd.DataFrame()
+    )
     return {
         "matches": pd.read_parquet(MATCHES_PATH),
         "teams": pd.read_parquet(TEAMS_PATH),
         "ratings": pd.read_parquet(RATINGS_PATH),
         "fixtures_2026": pd.read_parquet(FIXTURES_PATH),
+        "baseline_predictions": baseline_predictions,
     }
 
 
@@ -238,7 +292,7 @@ def dataframe_to_copy_buffer(frame: pd.DataFrame, columns: list[str]) -> io.Stri
 
 
 def truncate_tables(connection: psycopg.Connection, schema: str) -> None:
-    ordered_tables = ["matches", "teams", "ratings", "fixtures_2026"]
+    ordered_tables = ["matches", "teams", "ratings", "fixtures_2026", "baseline_predictions"]
     with connection.cursor() as cursor:
         for table in ordered_tables:
             cursor.execute(f"TRUNCATE TABLE {qualified_table(schema, table)}")
@@ -280,6 +334,8 @@ def sync_to_postgres(config: PostgresConfig | None = None) -> dict[str, int]:
         create_schema_objects(connection, config.schema)
         truncate_tables(connection, config.schema)
         for table, frame in frames.items():
+            if frame.empty:
+                continue
             copy_table(connection, config.schema, table, frame)
 
         counts: dict[str, int] = {}
