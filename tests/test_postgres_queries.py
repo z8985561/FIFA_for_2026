@@ -55,3 +55,31 @@ def test_parser_accepts_team_vs_field_command() -> None:
 
     assert args.command == "team-vs-field"
     assert args.team == "Argentina"
+
+
+def test_parser_accepts_group_strength_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["group-strength", "--group-name", "Group C"])
+
+    assert args.command == "group-strength"
+    assert args.group_name == "Group C"
+
+
+def test_parser_accepts_prediction_extremes_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "prediction-extremes",
+            "--mode",
+            "lopsided",
+            "--stage",
+            "Group Stage",
+            "--limit",
+            "5",
+        ]
+    )
+
+    assert args.command == "prediction-extremes"
+    assert args.mode == "lopsided"
+    assert args.stage == "Group Stage"
+    assert args.limit == 5

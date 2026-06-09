@@ -398,6 +398,111 @@ def query_team_vs_field(team: str) -> tuple[list[str], list[tuple[Any, ...]]]:
     return run_query(sql, (team,))
 
 
+def query_group_strength(group_name: str) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    sql = f"""
+        WITH group_teams AS (
+            SELECT home_team AS team_name
+            FROM {qualified_name(schema, "fixtures_2026")}
+            WHERE group_name = %s
+            UNION
+            SELECT away_team AS team_name
+            FROM {qualified_name(schema, "fixtures_2026")}
+            WHERE group_name = %s
+        )
+        SELECT
+            %s AS group_name,
+            gt.team_name,
+            ROUND(r.latest_elo::numeric, 2) AS latest_elo,
+            r.matches_played,
+            ROUND(AVG(r.latest_elo) OVER ()::numeric, 2) AS group_avg_elo,
+            ROUND((r.latest_elo - AVG(r.latest_elo) OVER ())::numeric, 2) AS elo_vs_group_avg
+        FROM group_teams AS gt
+        LEFT JOIN {qualified_name(schema, "ratings")} AS r
+            ON gt.team_name = r.team_name
+        ORDER BY latest_elo DESC NULLS LAST, gt.team_name
+    """
+    return run_query(sql, (group_name, group_name, group_name))
+
+
+def query_prediction_extremes(
+    mode: str,
+    stage: str | None,
+    group_name: str | None,
+    limit: int,
+) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if stage:
+        clauses.append("stage = %s")
+        params.append(stage)
+    if group_name:
+        clauses.append("group_name = %s")
+        params.append(group_name)
+
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    ordering = "ASC" if mode == "balanced" else "DESC"
+
+    sql = f"""
+        WITH prediction_scores AS (
+            SELECT
+                match_no,
+                stage,
+                group_name,
+                date_et,
+                home_team,
+                away_team,
+                home_win_probability,
+                draw_probability,
+                away_win_probability,
+                predicted_outcome,
+                GREATEST(
+                    home_win_probability,
+                    draw_probability,
+                    away_win_probability
+                ) AS top_probability,
+                (
+                    home_win_probability
+                    + draw_probability
+                    + away_win_probability
+                    - GREATEST(
+                        home_win_probability,
+                        draw_probability,
+                        away_win_probability
+                    )
+                    - LEAST(
+                        home_win_probability,
+                        draw_probability,
+                        away_win_probability
+                    )
+                ) AS middle_probability
+            FROM {qualified_name(schema, "baseline_prediction_summary")}
+            {where_clause}
+        )
+        SELECT
+            match_no,
+            stage,
+            group_name,
+            date_et,
+            home_team,
+            away_team,
+            home_win_probability,
+            draw_probability,
+            away_win_probability,
+            predicted_outcome,
+            ROUND(top_probability::numeric, 4) AS top_probability,
+            ROUND(middle_probability::numeric, 4) AS middle_probability,
+            ROUND((top_probability - middle_probability)::numeric, 4) AS confidence_gap
+        FROM prediction_scores
+        ORDER BY confidence_gap {ordering}, match_no
+        LIMIT %s
+    """
+    params.append(limit)
+    return run_query(sql, tuple(params))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run common Postgres research queries.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -468,6 +573,27 @@ def build_parser() -> argparse.ArgumentParser:
     team_vs_field.add_argument("--team", required=True)
     team_vs_field.add_argument("--output")
 
+    group_strength = subparsers.add_parser(
+        "group-strength",
+        help="Compare the teams inside one World Cup group.",
+    )
+    group_strength.add_argument("--group-name", required=True)
+    group_strength.add_argument("--output")
+
+    prediction_extremes = subparsers.add_parser(
+        "prediction-extremes",
+        help="Show the most balanced or most lopsided predicted matches.",
+    )
+    prediction_extremes.add_argument(
+        "--mode",
+        choices=["balanced", "lopsided"],
+        default="balanced",
+    )
+    prediction_extremes.add_argument("--stage")
+    prediction_extremes.add_argument("--group-name")
+    prediction_extremes.add_argument("--limit", type=int, default=10)
+    prediction_extremes.add_argument("--output")
+
     return parser
 
 
@@ -500,6 +626,15 @@ def main() -> None:
         columns, rows = query_recent_form(args.team, args.limit)
     elif args.command == "team-vs-field":
         columns, rows = query_team_vs_field(args.team)
+    elif args.command == "group-strength":
+        columns, rows = query_group_strength(args.group_name)
+    elif args.command == "prediction-extremes":
+        columns, rows = query_prediction_extremes(
+            args.mode,
+            args.stage,
+            args.group_name,
+            args.limit,
+        )
     else:
         raise ValueError(f"Unknown command: {args.command}")
 
