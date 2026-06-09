@@ -37,6 +37,7 @@ class ScorelineMetrics:
     train_matches: int
     test_matches: int
     feature_count: int
+    dixon_coles_rho: float
     home_goal_mae: float
     away_goal_mae: float
     home_poisson_deviance: float
@@ -77,12 +78,22 @@ def train_scoreline_models(
     home_model.fit(train_frame[columns], train_frame["home_score"])
     away_model.fit(train_frame[columns], train_frame["away_score"])
 
+    train_home_rates = clip_goal_rates(home_model.predict(train_frame[columns]))
+    train_away_rates = clip_goal_rates(away_model.predict(train_frame[columns]))
+    dixon_coles_rho = estimate_dixon_coles_rho(
+        train_frame["home_score"].to_numpy(),
+        train_frame["away_score"].to_numpy(),
+        train_home_rates,
+        train_away_rates,
+    )
+
     home_predictions = clip_goal_rates(home_model.predict(test_frame[columns]))
     away_predictions = clip_goal_rates(away_model.predict(test_frame[columns]))
     metrics = ScorelineMetrics(
         train_matches=len(train_frame),
         test_matches=len(test_frame),
         feature_count=len(columns),
+        dixon_coles_rho=dixon_coles_rho,
         home_goal_mae=float(mean_absolute_error(test_frame["home_score"], home_predictions)),
         away_goal_mae=float(mean_absolute_error(test_frame["away_score"], away_predictions)),
         home_poisson_deviance=float(
@@ -103,23 +114,87 @@ def poisson_probability(goals: int, rate: float) -> float:
     return math.exp(-rate) * (rate**goals) / math.factorial(goals)
 
 
+def dixon_coles_factor(
+    home_goals: int,
+    away_goals: int,
+    home_goal_rate: float,
+    away_goal_rate: float,
+    rho: float,
+) -> float:
+    if home_goals == 0 and away_goals == 0:
+        return max(1.0 - home_goal_rate * away_goal_rate * rho, 1e-9)
+    if home_goals == 0 and away_goals == 1:
+        return max(1.0 + home_goal_rate * rho, 1e-9)
+    if home_goals == 1 and away_goals == 0:
+        return max(1.0 + away_goal_rate * rho, 1e-9)
+    if home_goals == 1 and away_goals == 1:
+        return max(1.0 - rho, 1e-9)
+    return 1.0
+
+
+def estimate_dixon_coles_rho(
+    home_goals: np.ndarray,
+    away_goals: np.ndarray,
+    home_goal_rates: np.ndarray,
+    away_goal_rates: np.ndarray,
+) -> float:
+    candidate_rhos = np.linspace(-0.08, 0.08, 65)
+    best_rho = 0.0
+    best_loss = float("inf")
+
+    for rho in candidate_rhos:
+        loss = 0.0
+        for actual_home, actual_away, home_rate, away_rate in zip(
+            home_goals,
+            away_goals,
+            home_goal_rates,
+            away_goal_rates,
+            strict=True,
+        ):
+            probability = (
+                poisson_probability(int(actual_home), float(home_rate))
+                * poisson_probability(int(actual_away), float(away_rate))
+                * dixon_coles_factor(
+                    int(actual_home),
+                    int(actual_away),
+                    float(home_rate),
+                    float(away_rate),
+                    float(rho),
+                )
+            )
+            loss -= math.log(max(probability, 1e-12))
+        if loss < best_loss:
+            best_loss = loss
+            best_rho = float(rho)
+    return best_rho
+
+
 def scoreline_matrix(
     home_goal_rate: float,
     away_goal_rate: float,
     *,
     max_goals: int = DEFAULT_MAX_GOALS,
+    rho: float = 0.0,
 ) -> pd.DataFrame:
     rows = []
     for home_goals in range(max_goals + 1):
         home_probability = poisson_probability(home_goals, home_goal_rate)
         for away_goals in range(max_goals + 1):
+            adjustment = dixon_coles_factor(
+                home_goals,
+                away_goals,
+                home_goal_rate,
+                away_goal_rate,
+                rho,
+            )
             rows.append(
                 {
                     "home_goals": home_goals,
                     "away_goals": away_goals,
                     "scoreline": f"{home_goals}-{away_goals}",
                     "probability": home_probability
-                    * poisson_probability(away_goals, away_goal_rate),
+                    * poisson_probability(away_goals, away_goal_rate)
+                    * adjustment,
                 }
             )
 
@@ -170,6 +245,7 @@ def build_scoreline_analysis(
     home_model: object,
     away_model: object,
     *,
+    rho: float,
     limit: int,
     max_goals: int,
     top_scores: int,
@@ -186,7 +262,12 @@ def build_scoreline_analysis(
         away_rates,
         strict=True,
     ):
-        matrix = scoreline_matrix(float(home_rate), float(away_rate), max_goals=max_goals)
+        matrix = scoreline_matrix(
+            float(home_rate),
+            float(away_rate),
+            max_goals=max_goals,
+            rho=rho,
+        )
         summary = matrix_summary(matrix)
         top_matrix = matrix.sort_values("probability", ascending=False).head(top_scores)
         for rank, score_row in enumerate(top_matrix.itertuples(index=False), start=1):
@@ -200,6 +281,7 @@ def build_scoreline_analysis(
                     "away_team": row.away_team,
                     "home_expected_goals": float(home_rate),
                     "away_expected_goals": float(away_rate),
+                    "dixon_coles_rho": rho,
                     **summary,
                     "scoreline_rank": rank,
                     "scoreline": score_row.scoreline,
@@ -229,6 +311,7 @@ def prepare_scoreline_analysis(
         fixture_features,
         home_model,
         away_model,
+        rho=metrics.dixon_coles_rho,
         limit=limit,
         max_goals=max_goals,
         top_scores=top_scores,

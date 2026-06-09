@@ -1,10 +1,10 @@
 import pandas as pd
 
-from src.scoreline_model import matrix_summary, scoreline_matrix
+from src.scoreline_model import dixon_coles_factor, matrix_summary, scoreline_matrix
 
 
 def test_scoreline_matrix_normalizes_probabilities() -> None:
-    matrix = scoreline_matrix(1.4, 0.9, max_goals=6)
+    matrix = scoreline_matrix(1.4, 0.9, max_goals=6, rho=-0.03)
 
     assert round(matrix["probability"].sum(), 8) == 1.0
     assert {"home_goals", "away_goals", "scoreline", "probability"}.issubset(matrix.columns)
@@ -25,3 +25,9 @@ def test_matrix_summary_returns_market_style_probabilities() -> None:
     assert summary["score_draw_probability"] == 0.3
     assert summary["score_away_win_probability"] == 0.2
     assert summary["both_teams_score_probability"] == 0.3
+
+
+def test_dixon_coles_factor_adjusts_low_score_cells() -> None:
+    assert dixon_coles_factor(0, 0, 1.4, 0.9, -0.03) > 1.0
+    assert dixon_coles_factor(1, 1, 1.4, 0.9, -0.03) > 1.0
+    assert dixon_coles_factor(2, 1, 1.4, 0.9, -0.03) == 1.0

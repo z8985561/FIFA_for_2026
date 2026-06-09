@@ -5,6 +5,8 @@ This workspace is prepared for World Cup match win probability research on Windo
 ## Planning Docs
 
 - Data collection plan: [docs/data_collection_plan.md](docs/data_collection_plan.md)
+- Scoreline data enhancement plan:
+  [docs/scoreline_data_enhancement_plan.md](docs/scoreline_data_enhancement_plan.md)
 
 ## Environment
 
@@ -170,9 +172,10 @@ Outputs:
 - `reports/scoreline_model_metrics.json`
 - `reports/world_cup_2026_scoreline_analysis.csv`
 
-This first scoreline model predicts each team's expected goals from the same historical
-recent-form feature store used by the enhanced win-probability model. It should later be
-improved with xG, shot quality, player availability, odds, and weather calibration.
+This scoreline model predicts each team's expected goals from the same historical recent-form
+feature store used by the enhanced win-probability model, then applies a Dixon-Coles low-score
+correlation correction. It should later be improved with xG, shot quality, player availability,
+odds, and weather calibration.
 
 ## Postgres Sync
 
