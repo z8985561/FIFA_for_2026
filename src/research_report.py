@@ -193,16 +193,71 @@ def list_world_cup_teams() -> list[str]:
     return [str(row[0]) for row in rows]
 
 
+def query_group_strength_rollup() -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = current_schema()
+    sql = f"""
+        WITH group_teams AS (
+            SELECT DISTINCT group_name, home_team AS team_name
+            FROM {qualified_name(schema, "fixtures_2026")}
+            WHERE group_name IS NOT NULL
+              AND home_team <> 'TBD'
+            UNION
+            SELECT DISTINCT group_name, away_team AS team_name
+            FROM {qualified_name(schema, "fixtures_2026")}
+            WHERE group_name IS NOT NULL
+              AND away_team <> 'TBD'
+        )
+        SELECT
+            gt.group_name,
+            COUNT(*) AS teams,
+            ROUND(AVG(r.latest_elo)::numeric, 2) AS avg_elo,
+            ROUND(MAX(r.latest_elo)::numeric, 2) AS max_elo,
+            ROUND(MIN(r.latest_elo)::numeric, 2) AS min_elo,
+            ROUND((MAX(r.latest_elo) - MIN(r.latest_elo))::numeric, 2) AS elo_spread
+        FROM group_teams AS gt
+        LEFT JOIN {qualified_name(schema, "ratings")} AS r
+            ON gt.team_name = r.team_name
+        GROUP BY gt.group_name
+        ORDER BY avg_elo DESC, gt.group_name
+    """
+    return run_query(sql)
+
+
 def build_pack_index(
     generated_at: str,
     group_files: list[tuple[str, Path]],
     team_files: list[tuple[str, Path]],
+    group_summary: tuple[list[str], list[tuple[Any, ...]]],
+    balanced_matches: tuple[list[str], list[tuple[Any, ...]]],
+    lopsided_matches: tuple[list[str], list[tuple[Any, ...]]],
 ) -> str:
+    group_summary_columns, group_summary_rows = group_summary
+    balanced_columns, balanced_rows = balanced_matches
+    lopsided_columns, lopsided_rows = lopsided_matches
+
     sections = [
         "# World Cup 2026 Research Pack\n",
         f"Generated at: {generated_at}\n",
         f"Groups included: {len(group_files)}\n",
         f"Teams included: {len(team_files)}\n",
+        render_section(
+            "Group Strength Summary",
+            group_summary_columns,
+            group_summary_rows,
+            "No group strength summary available.",
+        ),
+        render_section(
+            "Most Balanced Group Stage Matches",
+            balanced_columns,
+            balanced_rows,
+            "No balanced group-stage matches available.",
+        ),
+        render_section(
+            "Most Lopsided Group Stage Matches",
+            lopsided_columns,
+            lopsided_rows,
+            "No lopsided group-stage matches available.",
+        ),
         "## Group Reports\n",
     ]
 
@@ -263,7 +318,17 @@ def generate_world_cup_pack(
 
     generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
     index_path = output_dir / "index.md"
-    write_report(index_path, build_pack_index(generated_at, group_files, team_files))
+    write_report(
+        index_path,
+        build_pack_index(
+            generated_at,
+            group_files,
+            team_files,
+            query_group_strength_rollup(),
+            query_prediction_extremes("balanced", "Group Stage", None, 8),
+            query_prediction_extremes("lopsided", "Group Stage", None, 8),
+        ),
+    )
     return index_path
 
 

@@ -48,9 +48,22 @@ def test_build_pack_index_renders_navigation_sections() -> None:
         "2026-06-09 15:00:00 +0800",
         [("Group C", default_world_cup_pack_dir() / "groups/group_c.md")],
         [("Argentina", default_world_cup_pack_dir() / "teams/argentina.md")],
+        (
+            ["group_name", "avg_elo"],
+            [("Group C", 1763.50)],
+        ),
+        (
+            ["match_no", "home_team", "away_team"],
+            [(14, "Haiti", "Scotland")],
+        ),
+        (
+            ["match_no", "home_team", "away_team"],
+            [(16, "Brazil", "Haiti")],
+        ),
     )
 
     assert "# World Cup 2026 Research Pack" in index
+    assert "## Group Strength Summary" in index
     assert "[Group C]" in index
     assert "[Argentina]" in index
 
