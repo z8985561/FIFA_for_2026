@@ -42,6 +42,15 @@ def test_parser_accepts_enhanced_prediction_query_command() -> None:
     assert args.limit == 4
 
 
+def test_parser_accepts_scoreline_query_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["scoreline-query", "--match-no", "1", "--limit", "10"])
+
+    assert args.command == "scoreline-query"
+    assert args.match_no == 1
+    assert args.limit == 10
+
+
 def test_parser_accepts_group_overview_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["group-overview", "--group-name", "Group C", "--output", "out.csv"])

@@ -285,6 +285,53 @@ def query_enhanced_prediction_lookup(
     return run_query(sql, tuple(params))
 
 
+def query_scoreline_lookup(
+    team: str | None,
+    group_name: str | None,
+    match_no: int | None,
+    limit: int,
+) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if team:
+        clauses.append("(home_team = %s OR away_team = %s)")
+        params.extend([team, team])
+    if group_name:
+        clauses.append("group_name = %s")
+        params.append(group_name)
+    if match_no:
+        clauses.append("match_no = %s")
+        params.append(match_no)
+
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = f"""
+        SELECT
+            match_no,
+            group_name,
+            date_et,
+            home_team,
+            away_team,
+            home_expected_goals,
+            away_expected_goals,
+            score_home_win_probability,
+            score_draw_probability,
+            score_away_win_probability,
+            over_2_5_probability,
+            both_teams_score_probability,
+            scoreline_rank,
+            scoreline,
+            scoreline_probability
+        FROM {qualified_name(schema, "scoreline_prediction_summary")}
+        {where_clause}
+        ORDER BY match_no, scoreline_rank
+        LIMIT %s
+    """
+    params.append(limit)
+    return run_query(sql, tuple(params))
+
+
 def query_group_overview(group_name: str) -> tuple[list[str], list[tuple[Any, ...]]]:
     schema = load_postgres_view_config().schema
     sql = f"""
@@ -871,6 +918,16 @@ def build_parser() -> argparse.ArgumentParser:
     enhanced_prediction_query.add_argument("--limit", type=int, default=20)
     enhanced_prediction_query.add_argument("--output")
 
+    scoreline_query = subparsers.add_parser(
+        "scoreline-query",
+        help="Show exact-score probabilities from the scoreline model.",
+    )
+    scoreline_query.add_argument("--team")
+    scoreline_query.add_argument("--group-name")
+    scoreline_query.add_argument("--match-no", type=int)
+    scoreline_query.add_argument("--limit", type=int, default=40)
+    scoreline_query.add_argument("--output")
+
     group_overview = subparsers.add_parser(
         "group-overview",
         help="Show a World Cup group with Elo and baseline probabilities.",
@@ -1006,6 +1063,13 @@ def main() -> None:
             args.team,
             args.stage,
             args.group_name,
+            args.limit,
+        )
+    elif args.command == "scoreline-query":
+        columns, rows = query_scoreline_lookup(
+            args.team,
+            args.group_name,
+            args.match_no,
             args.limit,
         )
     elif args.command == "group-overview":

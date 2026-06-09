@@ -40,6 +40,7 @@ def view_sql(schema: str) -> dict[str, str]:
     fixtures = qualified_table(schema, "fixtures_2026")
     predictions = qualified_table(schema, "baseline_predictions")
     enhanced_predictions = qualified_table(schema, "enhanced_predictions")
+    scoreline_analysis = qualified_table(schema, "scoreline_analysis")
     rankings = qualified_table(schema, "fifa_rankings_2026")
     squads = qualified_table(schema, "squads_2026")
     world_cup_teams = qualified_table(schema, "world_cup_teams_2026")
@@ -129,6 +130,36 @@ def view_sql(schema: str) -> dict[str, str]:
                 ROUND(away_win_probability::numeric, 4) AS away_win_probability,
                 predicted_outcome
             FROM {enhanced_predictions}
+        """,
+        "scoreline_prediction_summary": f"""
+            CREATE OR REPLACE VIEW {qs}.scoreline_prediction_summary AS
+            SELECT
+                match_no,
+                stage,
+                group_name,
+                date_et,
+                home_team,
+                away_team,
+                ROUND(home_expected_goals::numeric, 3) AS home_expected_goals,
+                ROUND(away_expected_goals::numeric, 3) AS away_expected_goals,
+                ROUND(dixon_coles_rho::numeric, 4) AS dixon_coles_rho,
+                ROUND(score_home_win_probability::numeric, 4)
+                    AS score_home_win_probability,
+                ROUND(score_draw_probability::numeric, 4) AS score_draw_probability,
+                ROUND(score_away_win_probability::numeric, 4)
+                    AS score_away_win_probability,
+                ROUND(over_2_5_probability::numeric, 4) AS over_2_5_probability,
+                ROUND(under_2_5_probability::numeric, 4) AS under_2_5_probability,
+                ROUND(both_teams_score_probability::numeric, 4)
+                    AS both_teams_score_probability,
+                ROUND(clean_sheet_home_probability::numeric, 4)
+                    AS clean_sheet_home_probability,
+                ROUND(clean_sheet_away_probability::numeric, 4)
+                    AS clean_sheet_away_probability,
+                scoreline_rank,
+                scoreline,
+                ROUND(scoreline_probability::numeric, 4) AS scoreline_probability
+            FROM {scoreline_analysis}
         """,
         "world_cup_team_profiles": f"""
             CREATE OR REPLACE VIEW {qs}.world_cup_team_profiles AS

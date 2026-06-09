@@ -23,10 +23,12 @@ from .project_paths import (
     MATCH_FEATURE_STORE_2026_PATH,
     MATCHES_PATH,
     RATINGS_PATH,
+    SCORELINE_ANALYSIS_PATH,
     SQUADS_2026_PATH,
     TEAMS_PATH,
     WORLD_CUP_TEAMS_2026_PATH,
 )
+from .scoreline_model import prepare_scoreline_analysis
 from .world_cup_identity import prepare_world_cup_identity_data
 
 DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
@@ -64,6 +66,29 @@ ENHANCED_PREDICTION_COLUMNS = [
     "draw_probability",
     "home_win_probability",
     "predicted_outcome",
+]
+
+SCORELINE_ANALYSIS_COLUMNS = [
+    "match_no",
+    "stage",
+    "group_name",
+    "date_et",
+    "home_team",
+    "away_team",
+    "home_expected_goals",
+    "away_expected_goals",
+    "dixon_coles_rho",
+    "score_home_win_probability",
+    "score_draw_probability",
+    "score_away_win_probability",
+    "over_2_5_probability",
+    "under_2_5_probability",
+    "both_teams_score_probability",
+    "clean_sheet_home_probability",
+    "clean_sheet_away_probability",
+    "scoreline_rank",
+    "scoreline",
+    "scoreline_probability",
 ]
 
 
@@ -213,6 +238,7 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
         *enhanced_feature_columns(),
     ],
     "enhanced_predictions": ENHANCED_PREDICTION_COLUMNS,
+    "scoreline_analysis": SCORELINE_ANALYSIS_COLUMNS,
 }
 
 
@@ -269,12 +295,14 @@ def ensure_processed_data() -> None:
         MATCH_FEATURE_STORE_2026_PATH,
         HISTORICAL_MATCH_FEATURE_STORE_PATH,
         ENHANCED_PREDICTIONS_PATH,
+        SCORELINE_ANALYSIS_PATH,
     ]
     if any(not path.exists() for path in required_paths):
         prepare_research_data()
         prepare_world_cup_identity_data()
         prepare_match_feature_store()
         prepare_enhanced_outputs()
+        prepare_scoreline_analysis()
 
 
 def quote_identifier(identifier: str) -> str:
@@ -297,6 +325,7 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
     match_feature_store_table = qualified_table(schema, "match_feature_store_2026")
     historical_feature_store_table = qualified_table(schema, "historical_match_feature_store")
     enhanced_predictions_table = qualified_table(schema, "enhanced_predictions")
+    scoreline_analysis_table = qualified_table(schema, "scoreline_analysis")
     quoted_schema = quote_identifier(schema)
     historical_feature_columns_sql = ",\n            ".join(
         f"{quote_identifier(column)} DOUBLE PRECISION NOT NULL"
@@ -502,6 +531,31 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {scoreline_analysis_table} (
+            match_no BIGINT NOT NULL,
+            stage TEXT NOT NULL,
+            group_name TEXT,
+            date_et DATE NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            home_expected_goals DOUBLE PRECISION NOT NULL,
+            away_expected_goals DOUBLE PRECISION NOT NULL,
+            dixon_coles_rho DOUBLE PRECISION NOT NULL,
+            score_home_win_probability DOUBLE PRECISION NOT NULL,
+            score_draw_probability DOUBLE PRECISION NOT NULL,
+            score_away_win_probability DOUBLE PRECISION NOT NULL,
+            over_2_5_probability DOUBLE PRECISION NOT NULL,
+            under_2_5_probability DOUBLE PRECISION NOT NULL,
+            both_teams_score_probability DOUBLE PRECISION NOT NULL,
+            clean_sheet_home_probability DOUBLE PRECISION NOT NULL,
+            clean_sheet_away_probability DOUBLE PRECISION NOT NULL,
+            scoreline_rank INTEGER NOT NULL,
+            scoreline TEXT NOT NULL,
+            scoreline_probability DOUBLE PRECISION NOT NULL,
+            PRIMARY KEY (match_no, scoreline_rank)
+        )
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_matches_match_date
         ON {matches_table} (match_date)
         """,
@@ -545,6 +599,10 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         CREATE INDEX IF NOT EXISTS idx_enhanced_predictions_group
         ON {enhanced_predictions_table} (group_name)
         """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_scoreline_analysis_match
+        ON {scoreline_analysis_table} (match_no)
+        """,
     )
 
 
@@ -575,6 +633,11 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         "enhanced_predictions": (
             pd.read_csv(ENHANCED_PREDICTIONS_PATH)
             if ENHANCED_PREDICTIONS_PATH.exists()
+            else pd.DataFrame()
+        ),
+        "scoreline_analysis": (
+            pd.read_csv(SCORELINE_ANALYSIS_PATH)
+            if SCORELINE_ANALYSIS_PATH.exists()
             else pd.DataFrame()
         ),
     }
@@ -608,6 +671,7 @@ def truncate_tables(connection: psycopg.Connection, schema: str) -> None:
         "match_feature_store_2026",
         "historical_match_feature_store",
         "enhanced_predictions",
+        "scoreline_analysis",
     ]
     with connection.cursor() as cursor:
         for table in ordered_tables:

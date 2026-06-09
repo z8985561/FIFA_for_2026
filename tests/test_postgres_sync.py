@@ -28,6 +28,7 @@ def test_postgres_schema_sql_uses_requested_schema() -> None:
         '"analytics"."historical_match_feature_store"' in statement for statement in statements
     )
     assert any('"analytics"."enhanced_predictions"' in statement for statement in statements)
+    assert any('"analytics"."scoreline_analysis"' in statement for statement in statements)
 
 
 def test_qualified_table_quotes_schema_and_table() -> None:

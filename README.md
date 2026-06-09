@@ -80,6 +80,7 @@ python -m src.postgres_sync
 python -m src.postgres_queries top-rated --limit 10
 python -m src.postgres_queries match-features --team Argentina
 python -m src.postgres_queries enhanced-prediction-query --team Argentina
+python -m src.postgres_queries scoreline-query --match-no 1 --limit 10
 python -m src.postgres_queries world-cup-teams --limit 10
 python -m src.postgres_queries squad --team Argentina
 python -m src.postgres_queries squad-composition --team Argentina
@@ -239,6 +240,7 @@ python -m src.postgres_queries competition-summary --competition-type world_cup
 python -m src.postgres_queries team-summary --team Argentina
 python -m src.postgres_queries prediction-query --group-name "Group C" --limit 6
 python -m src.postgres_queries enhanced-prediction-query --group-name "Group C" --limit 6
+python -m src.postgres_queries scoreline-query --group-name "Group A" --limit 20
 python -m src.postgres_queries group-overview --group-name "Group C"
 python -m src.postgres_queries top-rated --limit 20 --output reports/top_rated.csv
 python -m src.postgres_queries recent-form --team Brazil --limit 8
