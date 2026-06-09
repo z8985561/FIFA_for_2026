@@ -1,0 +1,45 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /workspace
+    env_file:
+      - .env
+    environment:
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-fifa-dev}
+    command: >
+      sh -c "pip install -e . &&
+      python -m jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+      --IdentityProvider.token=$${JUPYTER_TOKEN}"
+    volumes:
+      - ./:/workspace
+    ports:
+      - "${JUPYTER_PORT:-8888}:8888"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: quay.io/sclorg/postgresql-16-c9s:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRESQL_DATABASE: ${POSTGRES_DB:-fifa}
+      POSTGRESQL_USER: ${POSTGRES_USER:-fifa}
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-fifa_dev_password}
+      POSTGRESQL_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-postgres_admin_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRESQL_USER -d $$POSTGRESQL_DATABASE"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
