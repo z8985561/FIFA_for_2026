@@ -29,6 +29,8 @@ BASELINE_PREDICTIONS_PATH = REPORTS_DIR / "world_cup_2026_baseline_predictions.c
 ENHANCED_METRICS_PATH = REPORTS_DIR / "enhanced_model_metrics.json"
 ENHANCED_PREDICTIONS_PATH = REPORTS_DIR / "world_cup_2026_enhanced_predictions.csv"
 TOURNAMENT_SIMULATION_PATH = REPORTS_DIR / "world_cup_2026_tournament_simulation.csv"
+SCORELINE_METRICS_PATH = REPORTS_DIR / "scoreline_model_metrics.json"
+SCORELINE_ANALYSIS_PATH = REPORTS_DIR / "world_cup_2026_scoreline_analysis.csv"
 
 
 def ensure_project_directories() -> None:

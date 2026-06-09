@@ -72,6 +72,7 @@ python -m src.postgres_views
 python -m src.world_cup_identity
 python -m src.feature_store
 python -m src.enhanced_model
+python -m src.scoreline_model
 python -m src.tournament_simulator
 python -m src.postgres_sync
 python -m src.postgres_queries top-rated --limit 10
@@ -154,6 +155,24 @@ The first simulator version uses enhanced model probabilities for group-stage ma
 neutral-field Elo probabilities for knockout advancement. It implements 12 groups, best eight
 third-place teams, and a deterministic Round-of-32 third-place slot assignment. The third-place
 slot assignment should be replaced with the full official allocation table once encoded.
+
+## Scoreline Model
+
+Train Poisson goal models and generate exact-score probabilities for upcoming fixtures:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.scoreline_model --limit 4 --top-scores 10
+```
+
+Outputs:
+
+- `reports/scoreline_model_metrics.json`
+- `reports/world_cup_2026_scoreline_analysis.csv`
+
+This first scoreline model predicts each team's expected goals from the same historical
+recent-form feature store used by the enhanced win-probability model. It should later be
+improved with xG, shot quality, player availability, odds, and weather calibration.
 
 ## Postgres Sync
 
