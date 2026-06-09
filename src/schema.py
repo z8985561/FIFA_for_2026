@@ -107,6 +107,43 @@ SCHEMA_SQL: dict[str, str] = {
             squad_total_caps BIGINT
         )
     """,
+    "match_feature_store_2026": """
+        CREATE OR REPLACE TABLE match_feature_store_2026 (
+            match_no BIGINT,
+            stage VARCHAR,
+            group_name VARCHAR,
+            date_et DATE,
+            home_team VARCHAR,
+            away_team VARCHAR,
+            home_confederation VARCHAR,
+            away_confederation VARCHAR,
+            same_confederation BOOLEAN,
+            home_fifa_rank INTEGER,
+            away_fifa_rank INTEGER,
+            home_rank_advantage INTEGER,
+            home_latest_elo DOUBLE,
+            away_latest_elo DOUBLE,
+            elo_diff DOUBLE,
+            expected_home_win DOUBLE,
+            home_squad_size BIGINT,
+            away_squad_size BIGINT,
+            squad_size_diff BIGINT,
+            home_squad_average_age DOUBLE,
+            away_squad_average_age DOUBLE,
+            squad_average_age_diff DOUBLE,
+            home_squad_total_caps BIGINT,
+            away_squad_total_caps BIGINT,
+            squad_total_caps_diff BIGINT,
+            home_matches_played BIGINT,
+            away_matches_played BIGINT,
+            matches_played_diff BIGINT,
+            group_difficulty_rank BIGINT,
+            group_avg_elo DOUBLE,
+            group_avg_fifa_rank DOUBLE,
+            group_elo_spread DOUBLE,
+            neutral BOOLEAN
+        )
+    """,
 }
 
 

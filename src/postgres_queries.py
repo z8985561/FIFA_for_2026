@@ -718,6 +718,52 @@ def query_group_difficulty(
     return run_query(sql, params)
 
 
+def query_match_features(
+    team: str | None,
+    group_name: str | None,
+    limit: int,
+) -> tuple[list[str], list[tuple[Any, ...]]]:
+    schema = load_postgres_view_config().schema
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if team:
+        clauses.append("(home_team = %s OR away_team = %s)")
+        params.extend([team, team])
+    if group_name:
+        clauses.append("group_name = %s")
+        params.append(group_name)
+
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = f"""
+        SELECT
+            match_no,
+            stage,
+            group_name,
+            date_et,
+            home_team,
+            away_team,
+            home_fifa_rank,
+            away_fifa_rank,
+            home_rank_advantage,
+            ROUND(home_latest_elo::numeric, 2) AS home_latest_elo,
+            ROUND(away_latest_elo::numeric, 2) AS away_latest_elo,
+            ROUND(elo_diff::numeric, 2) AS elo_diff,
+            ROUND(expected_home_win::numeric, 4) AS expected_home_win,
+            squad_total_caps_diff,
+            ROUND(squad_average_age_diff::numeric, 2) AS squad_average_age_diff,
+            group_difficulty_rank,
+            ROUND(group_avg_elo::numeric, 2) AS group_avg_elo,
+            ROUND(group_elo_spread::numeric, 2) AS group_elo_spread
+        FROM {qualified_name(schema, "match_feature_store_2026")}
+        {where_clause}
+        ORDER BY match_no
+        LIMIT %s
+    """
+    params.append(limit)
+    return run_query(sql, tuple(params))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run common Postgres research queries.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -861,6 +907,15 @@ def build_parser() -> argparse.ArgumentParser:
     group_difficulty.add_argument("--limit", type=int, default=12)
     group_difficulty.add_argument("--output")
 
+    match_features = subparsers.add_parser(
+        "match-features",
+        help="Show model-ready features for known 2026 fixtures.",
+    )
+    match_features.add_argument("--team")
+    match_features.add_argument("--group-name")
+    match_features.add_argument("--limit", type=int, default=20)
+    match_features.add_argument("--output")
+
     return parser
 
 
@@ -920,6 +975,8 @@ def main() -> None:
         columns, rows = query_team_schedule_difficulty(args.team)
     elif args.command == "group-difficulty":
         columns, rows = query_group_difficulty(args.limit)
+    elif args.command == "match-features":
+        columns, rows = query_match_features(args.team, args.group_name, args.limit)
     else:
         raise ValueError(f"Unknown command: {args.command}")
 

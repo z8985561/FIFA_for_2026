@@ -145,3 +145,15 @@ def test_parser_accepts_group_difficulty_command() -> None:
 
     assert args.command == "group-difficulty"
     assert args.limit == 6
+
+
+def test_parser_accepts_match_features_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        ["match-features", "--team", "Argentina", "--group-name", "Group J", "--limit", "3"]
+    )
+
+    assert args.command == "match-features"
+    assert args.team == "Argentina"
+    assert args.group_name == "Group J"
+    assert args.limit == 3

@@ -10,11 +10,13 @@ import pandas as pd
 import psycopg
 
 from .data_pipeline import prepare_research_data
+from .feature_store import prepare_match_feature_store
 from .project_paths import (
     BASELINE_PREDICTIONS_PATH,
     DATABASE_PATH,
     FIFA_RANKINGS_PATH,
     FIXTURES_PATH,
+    MATCH_FEATURE_STORE_2026_PATH,
     MATCHES_PATH,
     RATINGS_PATH,
     SQUADS_2026_PATH,
@@ -133,6 +135,41 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
         "squad_average_age",
         "squad_total_caps",
     ],
+    "match_feature_store_2026": [
+        "match_no",
+        "stage",
+        "group_name",
+        "date_et",
+        "home_team",
+        "away_team",
+        "home_confederation",
+        "away_confederation",
+        "same_confederation",
+        "home_fifa_rank",
+        "away_fifa_rank",
+        "home_rank_advantage",
+        "home_latest_elo",
+        "away_latest_elo",
+        "elo_diff",
+        "expected_home_win",
+        "home_squad_size",
+        "away_squad_size",
+        "squad_size_diff",
+        "home_squad_average_age",
+        "away_squad_average_age",
+        "squad_average_age_diff",
+        "home_squad_total_caps",
+        "away_squad_total_caps",
+        "squad_total_caps_diff",
+        "home_matches_played",
+        "away_matches_played",
+        "matches_played_diff",
+        "group_difficulty_rank",
+        "group_avg_elo",
+        "group_avg_fifa_rank",
+        "group_elo_spread",
+        "neutral",
+    ],
 }
 
 
@@ -186,10 +223,12 @@ def ensure_processed_data() -> None:
         FIFA_RANKINGS_PATH,
         SQUADS_2026_PATH,
         WORLD_CUP_TEAMS_2026_PATH,
+        MATCH_FEATURE_STORE_2026_PATH,
     ]
     if any(not path.exists() for path in required_paths):
         prepare_research_data()
         prepare_world_cup_identity_data()
+        prepare_match_feature_store()
 
 
 def quote_identifier(identifier: str) -> str:
@@ -209,6 +248,7 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
     rankings_table = qualified_table(schema, "fifa_rankings_2026")
     squads_table = qualified_table(schema, "squads_2026")
     world_cup_teams_table = qualified_table(schema, "world_cup_teams_2026")
+    match_feature_store_table = qualified_table(schema, "match_feature_store_2026")
     quoted_schema = quote_identifier(schema)
 
     return (
@@ -336,6 +376,43 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {match_feature_store_table} (
+            match_no BIGINT PRIMARY KEY,
+            stage TEXT NOT NULL,
+            group_name TEXT,
+            date_et DATE NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            home_confederation TEXT,
+            away_confederation TEXT,
+            same_confederation BOOLEAN NOT NULL,
+            home_fifa_rank INTEGER,
+            away_fifa_rank INTEGER,
+            home_rank_advantage INTEGER,
+            home_latest_elo DOUBLE PRECISION,
+            away_latest_elo DOUBLE PRECISION,
+            elo_diff DOUBLE PRECISION,
+            expected_home_win DOUBLE PRECISION,
+            home_squad_size BIGINT,
+            away_squad_size BIGINT,
+            squad_size_diff BIGINT,
+            home_squad_average_age DOUBLE PRECISION,
+            away_squad_average_age DOUBLE PRECISION,
+            squad_average_age_diff DOUBLE PRECISION,
+            home_squad_total_caps BIGINT,
+            away_squad_total_caps BIGINT,
+            squad_total_caps_diff BIGINT,
+            home_matches_played BIGINT,
+            away_matches_played BIGINT,
+            matches_played_diff BIGINT,
+            group_difficulty_rank BIGINT,
+            group_avg_elo DOUBLE PRECISION,
+            group_avg_fifa_rank DOUBLE PRECISION,
+            group_elo_spread DOUBLE PRECISION,
+            neutral BOOLEAN NOT NULL
+        )
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_matches_match_date
         ON {matches_table} (match_date)
         """,
@@ -367,6 +444,10 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         CREATE INDEX IF NOT EXISTS idx_world_cup_teams_group
         ON {world_cup_teams_table} (group_name)
         """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_match_feature_store_group
+        ON {match_feature_store_table} (group_name)
+        """,
     )
 
 
@@ -392,6 +473,7 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         "fifa_rankings_2026": pd.read_parquet(FIFA_RANKINGS_PATH),
         "squads_2026": pd.read_parquet(SQUADS_2026_PATH),
         "world_cup_teams_2026": pd.read_parquet(WORLD_CUP_TEAMS_2026_PATH),
+        "match_feature_store_2026": pd.read_parquet(MATCH_FEATURE_STORE_2026_PATH),
     }
 
 
@@ -420,6 +502,7 @@ def truncate_tables(connection: psycopg.Connection, schema: str) -> None:
         "fifa_rankings_2026",
         "squads_2026",
         "world_cup_teams_2026",
+        "match_feature_store_2026",
     ]
     with connection.cursor() as cursor:
         for table in ordered_tables:

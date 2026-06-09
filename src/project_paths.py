@@ -20,6 +20,7 @@ FIXTURES_PATH = PROCESSED_DATA_DIR / "fixtures_2026.parquet"
 FIFA_RANKINGS_PATH = PROCESSED_DATA_DIR / "fifa_rankings_2026.parquet"
 SQUADS_2026_PATH = PROCESSED_DATA_DIR / "squads_2026.parquet"
 WORLD_CUP_TEAMS_2026_PATH = PROCESSED_DATA_DIR / "world_cup_teams_2026.parquet"
+MATCH_FEATURE_STORE_2026_PATH = FEATURE_DATA_DIR / "match_feature_store_2026.parquet"
 DATABASE_PATH = PROCESSED_DATA_DIR / "fifa_research.duckdb"
 
 BASELINE_METRICS_PATH = REPORTS_DIR / "baseline_metrics.json"

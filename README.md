@@ -70,8 +70,10 @@ python -m src.baseline_model
 python -m src.postgres_sync
 python -m src.postgres_views
 python -m src.world_cup_identity
+python -m src.feature_store
 python -m src.postgres_sync
 python -m src.postgres_queries top-rated --limit 10
+python -m src.postgres_queries match-features --team Argentina
 python -m src.postgres_queries world-cup-teams --limit 10
 python -m src.postgres_queries squad --team Argentina
 python -m src.postgres_queries squad-composition --team Argentina
@@ -141,6 +143,19 @@ Outputs:
 - `data/processed/squads_2026.parquet`
 - `data/processed/world_cup_teams_2026.parquet`
 
+## Match Feature Store
+
+Build model-ready features for known 2026 fixtures:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.feature_store
+```
+
+Output:
+
+- `data/features/match_feature_store_2026.parquet`
+
 ## Postgres Views
 
 Create reusable SQL views in Postgres after syncing data:
@@ -176,6 +191,7 @@ python -m src.postgres_queries group-profiles --group-name "Group C"
 python -m src.postgres_queries squad-composition --team Argentina
 python -m src.postgres_queries team-schedule-difficulty --team Argentina
 python -m src.postgres_queries group-difficulty --limit 12
+python -m src.postgres_queries match-features --group-name "Group C"
 python -m src.research_report team --team Argentina --output reports/team_report_argentina.md
 python -m src.research_report group --group-name "Group C" --output reports/group_report_group_c.md
 python -m src.research_report world-cup-pack --output-dir reports/world_cup_2026_pack
