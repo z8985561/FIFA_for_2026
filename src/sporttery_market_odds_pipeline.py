@@ -6,12 +6,14 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import numpy as np
 import pandas as pd
 
 from .project_paths import (
     FIXTURES_PATH,
     SPORTTERY_MARKET_ODDS_HISTORY_PATH,
     SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH,
+    SPORTTERY_MATCH_ODDS_FEATURES_PATH,
     ensure_project_directories,
 )
 from .score_odds_pipeline import (
@@ -87,8 +89,10 @@ OUTCOME_REVERSE_MAP = str.maketrans({"h": "a", "a": "h"})
 @dataclass(frozen=True)
 class SportteryMarketOddsPipelineOutputs:
     sporttery_market_odds_snapshots_path: str
+    sporttery_match_odds_features_path: str
     sporttery_market_odds_history_path: str | None
     snapshot_rows: int
+    feature_rows: int
     history_rows: int | None
     collected_matches: int
     collected_market_count: int
@@ -330,6 +334,85 @@ def append_sporttery_market_odds_history(
     return history
 
 
+def build_sporttery_match_odds_features(snapshots: pd.DataFrame) -> pd.DataFrame:
+    if snapshots.empty:
+        return pd.DataFrame()
+
+    had = snapshots.loc[snapshots["market_code"].eq("HAD")].copy()
+    if had.empty:
+        return pd.DataFrame()
+
+    rows: list[dict[str, Any]] = []
+    required_outcomes = {"home_win", "draw", "away_win"}
+    group_columns = [
+        "match_no",
+        "date_et",
+        "home_team",
+        "away_team",
+        "source_match_id",
+        "source_url",
+    ]
+    for key, group in had.groupby(group_columns, dropna=False):
+        outcome_prices = {
+            str(row.outcome_code): float(row.decimal_odds)
+            for row in group.itertuples(index=False)
+        }
+        if not required_outcomes.issubset(outcome_prices):
+            continue
+
+        raw_home = 1.0 / outcome_prices["home_win"]
+        raw_draw = 1.0 / outcome_prices["draw"]
+        raw_away = 1.0 / outcome_prices["away_win"]
+        implied_sum = raw_home + raw_draw + raw_away
+        probabilities = {
+            "home_win": raw_home / implied_sum,
+            "draw": raw_draw / implied_sum,
+            "away_win": raw_away / implied_sum,
+        }
+        favorite_outcome = max(probabilities, key=probabilities.get)
+        match_no, date_et, home_team, away_team, source_match_id, source_url = key
+        latest_market_update = group["market_update_at"].max()
+        latest_fetched_at = group["fetched_at"].max()
+        probability_values = np.array(list(probabilities.values()), dtype=float)
+        market_entropy = -float(
+            np.sum(probability_values * np.log(np.clip(probability_values, 1e-12, None)))
+        )
+
+        rows.append(
+            {
+                "event_id": f"sporttery_{source_match_id}",
+                "commence_time": pd.Timestamp(date_et).tz_localize("UTC")
+                + pd.Timedelta(hours=12),
+                "home_team": home_team,
+                "away_team": away_team,
+                "consensus_home_win_probability": probabilities["home_win"],
+                "consensus_draw_probability": probabilities["draw"],
+                "consensus_away_win_probability": probabilities["away_win"],
+                "avg_market_overround": implied_sum - 1.0,
+                "min_market_overround": implied_sum - 1.0,
+                "max_market_overround": implied_sum - 1.0,
+                "bookmaker_count": 1,
+                "latest_bookmaker_update": latest_market_update,
+                "latest_market_update": latest_market_update,
+                "latest_fetched_at": latest_fetched_at,
+                "consensus_fair_probability_sum": 1.0,
+                "market_entropy": market_entropy,
+                "favorite_probability": probabilities[favorite_outcome],
+                "favorite_outcome": favorite_outcome,
+                "source_name": SPORTTERY_SOURCE_NAME,
+                "source_url": source_url,
+                "source_match_id": source_match_id,
+            }
+        )
+
+    features = pd.DataFrame(rows)
+    if features.empty:
+        return features
+    return features.sort_values(["commence_time", "home_team", "away_team"]).reset_index(
+        drop=True
+    )
+
+
 def prepare_sporttery_market_odds(
     *,
     fixtures_path=FIXTURES_PATH,
@@ -338,6 +421,7 @@ def prepare_sporttery_market_odds(
     skip_existing_sporttery: bool = False,
     append_history: bool = False,
     sporttery_market_odds_snapshots_path=SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH,
+    sporttery_match_odds_features_path=SPORTTERY_MATCH_ODDS_FEATURES_PATH,
     sporttery_market_odds_history_path=SPORTTERY_MARKET_ODDS_HISTORY_PATH,
 ) -> SportteryMarketOddsPipelineOutputs:
     ensure_project_directories()
@@ -366,7 +450,9 @@ def prepare_sporttery_market_odds(
     if skip_existing_sporttery:
         snapshots = merge_sporttery_market_odds_snapshots(previous_snapshots, snapshots)
 
+    features = build_sporttery_match_odds_features(snapshots)
     snapshots.to_parquet(sporttery_market_odds_snapshots_path, index=False)
+    features.to_parquet(sporttery_match_odds_features_path, index=False)
     history = (
         append_sporttery_market_odds_history(
             snapshots,
@@ -378,10 +464,12 @@ def prepare_sporttery_market_odds(
 
     return SportteryMarketOddsPipelineOutputs(
         sporttery_market_odds_snapshots_path=str(sporttery_market_odds_snapshots_path),
+        sporttery_match_odds_features_path=str(sporttery_match_odds_features_path),
         sporttery_market_odds_history_path=(
             str(sporttery_market_odds_history_path) if append_history else None
         ),
         snapshot_rows=len(snapshots),
+        feature_rows=len(features),
         history_rows=len(history) if history is not None else None,
         collected_matches=(
             int(snapshots["match_no"].nunique()) if not snapshots.empty else 0

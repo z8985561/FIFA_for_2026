@@ -5,6 +5,7 @@ import pandas as pd
 from src.sporttery_market_odds_pipeline import (
     append_sporttery_market_odds_history,
     build_sporttery_market_odds_snapshots,
+    build_sporttery_match_odds_features,
     extract_sporttery_market_odds,
     normalized_goal_line,
 )
@@ -154,6 +155,36 @@ def test_build_sporttery_market_odds_snapshots_uses_fixture_metadata(monkeypatch
     assert snapshots["source_match_id"].unique().tolist() == ["2040162"]
     assert set(snapshots["market_code"]) == {"HAD", "HHAD", "TTG", "HAFU"}
     assert "胜平负" in set(snapshots["market_name_zh"])
+
+
+def test_build_sporttery_match_odds_features_normalizes_had_probabilities() -> None:
+    snapshots = pd.DataFrame(
+        {
+            "match_no": [1, 1, 1],
+            "date_et": [pd.Timestamp("2026-06-11").date()] * 3,
+            "home_team": ["Mexico"] * 3,
+            "away_team": ["South Africa"] * 3,
+            "market_code": ["HAD", "HAD", "HAD"],
+            "outcome_code": ["home_win", "draw", "away_win"],
+            "decimal_odds": [1.30, 4.15, 8.40],
+            "market_update_at": [pd.Timestamp("2026-06-10T04:01:26Z")] * 3,
+            "fetched_at": [pd.Timestamp("2026-06-10T05:00:00Z")] * 3,
+            "source_match_id": ["2040162"] * 3,
+            "source_url": ["https://www.sporttery.cn/jc/zqdz/index.html?mid=2040162"] * 3,
+        }
+    )
+
+    features = build_sporttery_match_odds_features(snapshots)
+
+    assert len(features) == 1
+    probability_sum = (
+        features.loc[0, "consensus_home_win_probability"]
+        + features.loc[0, "consensus_draw_probability"]
+        + features.loc[0, "consensus_away_win_probability"]
+    )
+    assert round(float(probability_sum), 8) == 1.0
+    assert features.loc[0, "event_id"] == "sporttery_2040162"
+    assert features.loc[0, "favorite_outcome"] == "home_win"
 
 
 def test_append_sporttery_market_odds_history_deduplicates_identical_rows(tmp_path) -> None:

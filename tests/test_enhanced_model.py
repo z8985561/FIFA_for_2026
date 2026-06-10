@@ -1,5 +1,6 @@
 import pandas as pd
 
+from src.enhanced_model import combine_match_odds_feature_sources
 from src.market_features import attach_market_features, blend_model_and_market_probabilities
 
 
@@ -115,3 +116,55 @@ def test_attach_market_features_matches_reversed_market_home_away_order() -> Non
     assert bool(attached.loc[0, "has_market_odds"]) is True
     assert round(float(attached.loc[0, "consensus_home_win_probability"]), 8) == 0.75
     assert round(float(attached.loc[0, "consensus_away_win_probability"]), 8) == 0.08
+
+
+def test_combine_match_odds_feature_sources_prefers_sporttery_for_same_match() -> None:
+    base = pd.DataFrame(
+        {
+            "event_id": ["market_1"],
+            "home_team": ["Mexico"],
+            "away_team": ["South Africa"],
+            "commence_time": [pd.Timestamp("2026-06-11T18:00:00Z")],
+            "consensus_home_win_probability": [0.60],
+            "consensus_draw_probability": [0.25],
+            "consensus_away_win_probability": [0.15],
+        }
+    )
+    sporttery = pd.DataFrame(
+        {
+            "event_id": ["sporttery_2040162"],
+            "home_team": ["Mexico"],
+            "away_team": ["South Africa"],
+            "commence_time": [pd.Timestamp("2026-06-11T12:00:00Z")],
+            "consensus_home_win_probability": [0.68],
+            "consensus_draw_probability": [0.21],
+            "consensus_away_win_probability": [0.11],
+        }
+    )
+
+    combined = combine_match_odds_feature_sources(base, sporttery)
+
+    assert len(combined) == 1
+    assert combined.loc[0, "event_id"] == "sporttery_2040162"
+    assert round(float(combined.loc[0, "consensus_home_win_probability"]), 8) == 0.68
+
+
+def test_combine_match_odds_feature_sources_deduplicates_reversed_team_order() -> None:
+    base = pd.DataFrame(
+        {
+            "event_id": ["market_1", "market_1_reversed"],
+            "home_team": ["Tunisia", "Sweden"],
+            "away_team": ["Sweden", "Tunisia"],
+            "commence_time": [
+                pd.Timestamp("2026-06-14T18:00:00Z"),
+                pd.Timestamp("2026-06-14T18:00:00Z"),
+            ],
+            "consensus_home_win_probability": [0.30, 0.40],
+            "consensus_draw_probability": [0.30, 0.30],
+            "consensus_away_win_probability": [0.40, 0.30],
+        }
+    )
+
+    combined = combine_match_odds_feature_sources(base, pd.DataFrame())
+
+    assert len(combined) == 1

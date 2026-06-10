@@ -40,6 +40,7 @@ from .project_paths import (
     SCORELINE_VALUE_BETS_PATH,
     SPORTTERY_MARKET_ODDS_HISTORY_PATH,
     SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH,
+    SPORTTERY_MATCH_ODDS_FEATURES_PATH,
     SQUADS_2026_PATH,
     TEAM_GOAL_FORM_FEATURES_PATH,
     TEAMS_PATH,
@@ -521,6 +522,7 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
     "score_odds_collection_status": SCORE_ODDS_COLLECTION_STATUS_COLUMNS,
     "sporttery_market_odds_snapshots": SPORTTERY_MARKET_ODDS_COLUMNS,
     "sporttery_market_odds_history": SPORTTERY_MARKET_ODDS_COLUMNS,
+    "sporttery_match_odds_features": MATCH_ODDS_FEATURE_COLUMNS,
     "enhanced_predictions": ENHANCED_PREDICTION_COLUMNS,
     "scoreline_analysis": SCORELINE_ANALYSIS_COLUMNS,
     "scoreline_value_bets": SCORELINE_VALUE_BET_COLUMNS,
@@ -593,6 +595,7 @@ def ensure_processed_data() -> None:
         SCORE_ODDS_FEATURES_PATH,
         SCORE_ODDS_COLLECTION_STATUS_PATH,
         SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH,
+        SPORTTERY_MATCH_ODDS_FEATURES_PATH,
         SCORELINE_VALUE_BETS_PATH,
     ]
     if any(not path.exists() for path in required_paths):
@@ -654,6 +657,10 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
     sporttery_market_odds_history_table = qualified_table(
         schema,
         "sporttery_market_odds_history",
+    )
+    sporttery_match_odds_features_table = qualified_table(
+        schema,
+        "sporttery_match_odds_features",
     )
     enhanced_predictions_table = qualified_table(schema, "enhanced_predictions")
     scoreline_analysis_table = qualified_table(schema, "scoreline_analysis")
@@ -1132,6 +1139,28 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {sporttery_match_odds_features_table} (
+            event_id TEXT PRIMARY KEY,
+            commence_time TIMESTAMPTZ,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            consensus_home_win_probability DOUBLE PRECISION NOT NULL,
+            consensus_draw_probability DOUBLE PRECISION NOT NULL,
+            consensus_away_win_probability DOUBLE PRECISION NOT NULL,
+            avg_market_overround DOUBLE PRECISION,
+            min_market_overround DOUBLE PRECISION,
+            max_market_overround DOUBLE PRECISION,
+            bookmaker_count BIGINT,
+            latest_bookmaker_update TIMESTAMPTZ,
+            latest_market_update TIMESTAMPTZ,
+            latest_fetched_at TIMESTAMPTZ,
+            consensus_fair_probability_sum DOUBLE PRECISION,
+            market_entropy DOUBLE PRECISION,
+            favorite_probability DOUBLE PRECISION,
+            favorite_outcome TEXT
+        )
+        """,
+        f"""
         CREATE TABLE IF NOT EXISTS {enhanced_predictions_table} (
             match_no BIGINT PRIMARY KEY,
             stage TEXT NOT NULL,
@@ -1357,6 +1386,10 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         ON {sporttery_market_odds_history_table} (source_match_id, market_code, fetched_at)
         """,
         f"""
+        CREATE INDEX IF NOT EXISTS idx_sporttery_match_odds_features_teams
+        ON {sporttery_match_odds_features_table} (home_team, away_team)
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_enhanced_predictions_group
         ON {enhanced_predictions_table} (group_name)
         """,
@@ -1506,6 +1539,9 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         ),
         "sporttery_market_odds_history": read_optional_parquet(
             SPORTTERY_MARKET_ODDS_HISTORY_PATH
+        ),
+        "sporttery_match_odds_features": read_optional_parquet(
+            SPORTTERY_MATCH_ODDS_FEATURES_PATH
         ),
         "enhanced_predictions": read_enhanced_predictions_frame(),
         "scoreline_analysis": read_optional_csv(SCORELINE_ANALYSIS_PATH),

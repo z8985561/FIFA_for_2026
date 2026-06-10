@@ -262,10 +262,14 @@ Outputs:
 
 - `data/processed/sporttery_market_odds_snapshots.parquet`
 - `data/processed/sporttery_market_odds_history.parquet`
+- `data/features/sporttery_match_odds_features.parquet`
 
 The fixed-bonus market collector currently flattens `胜平负`, `让球胜平负`, `总进球`,
 and `半全场`. If the Sporttery home/away order differs from the local fixture order, it
-reverses win/loss outcomes and flips the handicap goal line before storage.
+reverses win/loss outcomes and flips the handicap goal line before storage. The `胜平负`
+market is also converted into standard 1X2 match-odds features, and the enhanced model
+prefers these official Sporttery probabilities when they cover the same fixture as a generic
+international odds source.
 
 Rows keep `source_name`, `source_url`, and `source_match_id`, so Postgres reports can distinguish
 `中国体育彩票` from international public odds and can use the Sporttery `mid` to detect already

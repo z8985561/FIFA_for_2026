@@ -33,8 +33,11 @@ from .project_paths import (
     MATCH_ODDS_FEATURES_PATH,
     MATCHES_PATH,
     RATINGS_PATH,
+    SPORTTERY_MATCH_ODDS_FEATURES_PATH,
     ensure_project_directories,
 )
+from .sporttery_market_odds_pipeline import prepare_sporttery_market_odds
+from .team_names import normalize_team_name
 
 
 @dataclass(frozen=True)
@@ -66,6 +69,70 @@ def ensure_enhanced_inputs() -> None:
         prepare_match_feature_store()
     if not MATCH_ODDS_FEATURES_PATH.exists():
         prepare_odds_features()
+    if not SPORTTERY_MATCH_ODDS_FEATURES_PATH.exists():
+        prepare_sporttery_market_odds()
+
+
+def market_feature_source_key(
+    frame: pd.DataFrame,
+    *,
+    market_date_timezone: str = "America/New_York",
+) -> pd.DataFrame:
+    keyed = frame.copy()
+    keyed["home_team_key"] = keyed["home_team"].map(normalize_team_name)
+    keyed["away_team_key"] = keyed["away_team"].map(normalize_team_name)
+    keyed["team_pair_key"] = keyed[["home_team_key", "away_team_key"]].apply(
+        lambda row: "|".join(sorted(map(str, row))),
+        axis=1,
+    )
+    keyed["market_match_date"] = (
+        pd.to_datetime(keyed["commence_time"], utc=True, errors="coerce")
+        .dt.tz_convert(market_date_timezone)
+        .dt.date
+    )
+    return keyed
+
+
+def combine_match_odds_feature_sources(
+    market_odds_features: pd.DataFrame,
+    sporttery_match_odds_features: pd.DataFrame,
+) -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    if not market_odds_features.empty:
+        base = market_feature_source_key(market_odds_features)
+        base["source_priority"] = 0
+        frames.append(base)
+    if not sporttery_match_odds_features.empty:
+        sporttery = market_feature_source_key(sporttery_match_odds_features)
+        sporttery["source_priority"] = 1
+        frames.append(sporttery)
+    if not frames:
+        return pd.DataFrame()
+
+    combined = pd.concat(frames, ignore_index=True)
+    combined = combined.dropna(subset=["market_match_date"])
+    combined = combined.sort_values(
+        [
+            "home_team_key",
+            "away_team_key",
+            "team_pair_key",
+            "market_match_date",
+            "source_priority",
+        ]
+    )
+    combined = combined.drop_duplicates(
+        subset=["team_pair_key", "market_match_date"],
+        keep="last",
+    )
+    return combined.drop(
+        columns=[
+            "home_team_key",
+            "away_team_key",
+            "team_pair_key",
+            "market_match_date",
+            "source_priority",
+        ]
+    ).reset_index(drop=True)
 
 
 def multiclass_brier_score(y_true: np.ndarray, probabilities: np.ndarray) -> float:
@@ -179,7 +246,10 @@ def prepare_enhanced_outputs() -> EnhancedOutputs:
 
     matches = pd.read_parquet(MATCHES_PATH)
     match_features_2026 = pd.read_parquet(MATCH_FEATURE_STORE_2026_PATH)
-    match_odds_features = pd.read_parquet(MATCH_ODDS_FEATURES_PATH)
+    match_odds_features = combine_match_odds_feature_sources(
+        pd.read_parquet(MATCH_ODDS_FEATURES_PATH),
+        pd.read_parquet(SPORTTERY_MATCH_ODDS_FEATURES_PATH),
+    )
 
     historical_features = prepare_historical_feature_store(matches)
     model, metrics = train_enhanced_model(historical_features)
