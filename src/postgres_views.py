@@ -41,6 +41,9 @@ def view_sql(schema: str) -> dict[str, str]:
     predictions = qualified_table(schema, "baseline_predictions")
     enhanced_predictions = qualified_table(schema, "enhanced_predictions")
     scoreline_analysis = qualified_table(schema, "scoreline_analysis")
+    odds_raw_api_responses = qualified_table(schema, "odds_raw_api_responses")
+    match_odds_features = qualified_table(schema, "match_odds_features")
+    historical_match_odds_features = qualified_table(schema, "historical_match_odds_features")
     rankings = qualified_table(schema, "fifa_rankings_2026")
     squads = qualified_table(schema, "squads_2026")
     team_goal_form = qualified_table(schema, "team_goal_form_features")
@@ -187,6 +190,60 @@ def view_sql(schema: str) -> dict[str, str]:
                 scoreline,
                 ROUND(scoreline_probability::numeric, 4) AS scoreline_probability
             FROM {scoreline_analysis}
+        """,
+        "odds_raw_api_response_inventory": f"""
+            CREATE OR REPLACE VIEW {qs}.odds_raw_api_response_inventory AS
+            SELECT
+                source_file,
+                payload_type,
+                sport_key,
+                fetched_at,
+                file_size_bytes,
+                jsonb_typeof(payload_json) AS payload_json_type,
+                jsonb_typeof(metadata_json) AS metadata_json_type
+            FROM {odds_raw_api_responses}
+        """,
+        "match_odds_feature_summary": f"""
+            CREATE OR REPLACE VIEW {qs}.match_odds_feature_summary AS
+            SELECT
+                event_id,
+                commence_time,
+                home_team,
+                away_team,
+                ROUND(consensus_home_win_probability::numeric, 4)
+                    AS consensus_home_win_probability,
+                ROUND(consensus_draw_probability::numeric, 4)
+                    AS consensus_draw_probability,
+                ROUND(consensus_away_win_probability::numeric, 4)
+                    AS consensus_away_win_probability,
+                ROUND(avg_market_overround::numeric, 4) AS avg_market_overround,
+                bookmaker_count,
+                latest_fetched_at,
+                ROUND(market_entropy::numeric, 4) AS market_entropy,
+                ROUND(favorite_probability::numeric, 4) AS favorite_probability,
+                favorite_outcome
+            FROM {match_odds_features}
+        """,
+        "historical_match_odds_feature_summary": f"""
+            CREATE OR REPLACE VIEW {qs}.historical_match_odds_feature_summary AS
+            SELECT
+                event_id,
+                commence_time,
+                home_team,
+                away_team,
+                ROUND(consensus_home_win_probability::numeric, 4)
+                    AS consensus_home_win_probability,
+                ROUND(consensus_draw_probability::numeric, 4)
+                    AS consensus_draw_probability,
+                ROUND(consensus_away_win_probability::numeric, 4)
+                    AS consensus_away_win_probability,
+                ROUND(avg_market_overround::numeric, 4) AS avg_market_overround,
+                bookmaker_count,
+                latest_fetched_at,
+                ROUND(market_entropy::numeric, 4) AS market_entropy,
+                ROUND(favorite_probability::numeric, 4) AS favorite_probability,
+                favorite_outcome
+            FROM {historical_match_odds_features}
         """,
         "world_cup_team_profiles": f"""
             CREATE OR REPLACE VIEW {qs}.world_cup_team_profiles AS

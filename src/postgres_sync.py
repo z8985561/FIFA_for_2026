@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,10 +21,15 @@ from .project_paths import (
     ENHANCED_PREDICTIONS_PATH,
     FIFA_RANKINGS_PATH,
     FIXTURES_PATH,
+    HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH,
     HISTORICAL_MATCH_FEATURE_STORE_PATH,
+    HISTORICAL_MATCH_ODDS_FEATURES_PATH,
+    MARKET_ODDS_SNAPSHOTS_PATH,
     MATCH_FEATURE_STORE_2026_PATH,
+    MATCH_ODDS_FEATURES_PATH,
     MATCHES_PATH,
     RATINGS_PATH,
+    RAW_ODDS_DIR,
     SCORELINE_ANALYSIS_PATH,
     SQUADS_2026_PATH,
     TEAM_GOAL_FORM_FEATURES_PATH,
@@ -140,6 +146,60 @@ TEAM_GOAL_FORM_COLUMNS = [
     "clean_sheet_rate_last_20",
     "btts_rate_last_20",
     "avg_total_goals_last_20",
+]
+
+ODDS_RAW_API_RESPONSE_COLUMNS = [
+    "source_file",
+    "source_path",
+    "payload_type",
+    "sport_key",
+    "fetched_at",
+    "file_size_bytes",
+    "payload_json",
+    "metadata_json",
+]
+
+MARKET_ODDS_SNAPSHOT_COLUMNS = [
+    "source_file",
+    "request_label",
+    "request_markets",
+    "request_regions",
+    "fetched_at",
+    "event_id",
+    "sport_key",
+    "sport_title",
+    "commence_time",
+    "home_team",
+    "away_team",
+    "bookmaker_key",
+    "bookmaker_title",
+    "bookmaker_last_update",
+    "market_key",
+    "market_last_update",
+    "outcome_name",
+    "price",
+    "point",
+]
+
+MATCH_ODDS_FEATURE_COLUMNS = [
+    "event_id",
+    "commence_time",
+    "home_team",
+    "away_team",
+    "consensus_home_win_probability",
+    "consensus_draw_probability",
+    "consensus_away_win_probability",
+    "avg_market_overround",
+    "min_market_overround",
+    "max_market_overround",
+    "bookmaker_count",
+    "latest_bookmaker_update",
+    "latest_market_update",
+    "latest_fetched_at",
+    "consensus_fair_probability_sum",
+    "market_entropy",
+    "favorite_probability",
+    "favorite_outcome",
 ]
 
 
@@ -289,9 +349,16 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
         *HISTORICAL_FEATURE_STORE_ID_COLUMNS,
         *enhanced_feature_columns(),
     ],
+    "odds_raw_api_responses": ODDS_RAW_API_RESPONSE_COLUMNS,
+    "market_odds_snapshots": MARKET_ODDS_SNAPSHOT_COLUMNS,
+    "match_odds_features": MATCH_ODDS_FEATURE_COLUMNS,
+    "historical_market_odds_snapshots": MARKET_ODDS_SNAPSHOT_COLUMNS,
+    "historical_match_odds_features": MATCH_ODDS_FEATURE_COLUMNS,
     "enhanced_predictions": ENHANCED_PREDICTION_COLUMNS,
     "scoreline_analysis": SCORELINE_ANALYSIS_COLUMNS,
 }
+
+MANAGED_POSTGRES_TABLES = tuple(POSTGRES_TABLE_COLUMNS)
 
 
 @dataclass(frozen=True)
@@ -349,6 +416,10 @@ def ensure_processed_data() -> None:
         HISTORICAL_MATCH_FEATURE_STORE_PATH,
         ENHANCED_PREDICTIONS_PATH,
         SCORELINE_ANALYSIS_PATH,
+        MARKET_ODDS_SNAPSHOTS_PATH,
+        MATCH_ODDS_FEATURES_PATH,
+        HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH,
+        HISTORICAL_MATCH_ODDS_FEATURES_PATH,
     ]
     if any(not path.exists() for path in required_paths):
         prepare_research_data()
@@ -379,6 +450,17 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
     team_goal_form_table = qualified_table(schema, "team_goal_form_features")
     match_feature_store_table = qualified_table(schema, "match_feature_store_2026")
     historical_feature_store_table = qualified_table(schema, "historical_match_feature_store")
+    odds_raw_api_responses_table = qualified_table(schema, "odds_raw_api_responses")
+    market_odds_snapshots_table = qualified_table(schema, "market_odds_snapshots")
+    match_odds_features_table = qualified_table(schema, "match_odds_features")
+    historical_market_odds_snapshots_table = qualified_table(
+        schema,
+        "historical_market_odds_snapshots",
+    )
+    historical_match_odds_features_table = qualified_table(
+        schema,
+        "historical_match_odds_features",
+    )
     enhanced_predictions_table = qualified_table(schema, "enhanced_predictions")
     scoreline_analysis_table = qualified_table(schema, "scoreline_analysis")
     quoted_schema = quote_identifier(schema)
@@ -587,6 +669,108 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {odds_raw_api_responses_table} (
+            source_file TEXT PRIMARY KEY,
+            source_path TEXT NOT NULL,
+            payload_type TEXT NOT NULL,
+            sport_key TEXT,
+            fetched_at TIMESTAMPTZ,
+            file_size_bytes BIGINT NOT NULL,
+            payload_json JSONB NOT NULL,
+            metadata_json JSONB NOT NULL
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {market_odds_snapshots_table} (
+            source_file TEXT NOT NULL,
+            request_label TEXT,
+            request_markets TEXT,
+            request_regions TEXT,
+            fetched_at TIMESTAMPTZ,
+            event_id TEXT NOT NULL,
+            sport_key TEXT,
+            sport_title TEXT,
+            commence_time TIMESTAMPTZ,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            bookmaker_key TEXT NOT NULL,
+            bookmaker_title TEXT,
+            bookmaker_last_update TIMESTAMPTZ,
+            market_key TEXT NOT NULL,
+            market_last_update TIMESTAMPTZ,
+            outcome_name TEXT NOT NULL,
+            price DOUBLE PRECISION NOT NULL,
+            point DOUBLE PRECISION
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {match_odds_features_table} (
+            event_id TEXT PRIMARY KEY,
+            commence_time TIMESTAMPTZ,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            consensus_home_win_probability DOUBLE PRECISION NOT NULL,
+            consensus_draw_probability DOUBLE PRECISION NOT NULL,
+            consensus_away_win_probability DOUBLE PRECISION NOT NULL,
+            avg_market_overround DOUBLE PRECISION,
+            min_market_overround DOUBLE PRECISION,
+            max_market_overround DOUBLE PRECISION,
+            bookmaker_count BIGINT,
+            latest_bookmaker_update TIMESTAMPTZ,
+            latest_market_update TIMESTAMPTZ,
+            latest_fetched_at TIMESTAMPTZ,
+            consensus_fair_probability_sum DOUBLE PRECISION,
+            market_entropy DOUBLE PRECISION,
+            favorite_probability DOUBLE PRECISION,
+            favorite_outcome TEXT
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {historical_market_odds_snapshots_table} (
+            source_file TEXT NOT NULL,
+            request_label TEXT,
+            request_markets TEXT,
+            request_regions TEXT,
+            fetched_at TIMESTAMPTZ,
+            event_id TEXT NOT NULL,
+            sport_key TEXT,
+            sport_title TEXT,
+            commence_time TIMESTAMPTZ,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            bookmaker_key TEXT NOT NULL,
+            bookmaker_title TEXT,
+            bookmaker_last_update TIMESTAMPTZ,
+            market_key TEXT NOT NULL,
+            market_last_update TIMESTAMPTZ,
+            outcome_name TEXT NOT NULL,
+            price DOUBLE PRECISION NOT NULL,
+            point DOUBLE PRECISION
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {historical_match_odds_features_table} (
+            event_id TEXT PRIMARY KEY,
+            commence_time TIMESTAMPTZ,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            consensus_home_win_probability DOUBLE PRECISION NOT NULL,
+            consensus_draw_probability DOUBLE PRECISION NOT NULL,
+            consensus_away_win_probability DOUBLE PRECISION NOT NULL,
+            avg_market_overround DOUBLE PRECISION,
+            min_market_overround DOUBLE PRECISION,
+            max_market_overround DOUBLE PRECISION,
+            bookmaker_count BIGINT,
+            latest_bookmaker_update TIMESTAMPTZ,
+            latest_market_update TIMESTAMPTZ,
+            latest_fetched_at TIMESTAMPTZ,
+            consensus_fair_probability_sum DOUBLE PRECISION,
+            market_entropy DOUBLE PRECISION,
+            favorite_probability DOUBLE PRECISION,
+            favorite_outcome TEXT
+        )
+        """,
+        f"""
         CREATE TABLE IF NOT EXISTS {enhanced_predictions_table} (
             match_no BIGINT PRIMARY KEY,
             stage TEXT NOT NULL,
@@ -705,6 +889,26 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         ON {historical_feature_store_table} (match_date)
         """,
         f"""
+        CREATE INDEX IF NOT EXISTS idx_odds_raw_api_responses_payload_type
+        ON {odds_raw_api_responses_table} (payload_type)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_market_odds_snapshots_event
+        ON {market_odds_snapshots_table} (event_id)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_match_odds_features_teams
+        ON {match_odds_features_table} (home_team, away_team)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_historical_market_odds_snapshots_event
+        ON {historical_market_odds_snapshots_table} (event_id)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_historical_match_odds_features_teams
+        ON {historical_match_odds_features_table} (home_team, away_team)
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_enhanced_predictions_group
         ON {enhanced_predictions_table} (group_name)
         """,
@@ -717,17 +921,99 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
 
 def create_schema_objects(connection: psycopg.Connection, schema: str) -> None:
     with connection.cursor() as cursor:
-        for statement in postgres_schema_sql(schema):
+        statements = postgres_schema_sql(schema)
+        cursor.execute(statements[0])
+        for table in reversed(MANAGED_POSTGRES_TABLES):
+            cursor.execute(f"DROP TABLE IF EXISTS {qualified_table(schema, table)} CASCADE")
+        for statement in statements[1:]:
             cursor.execute(statement)
     connection.commit()
 
 
-def read_processed_frames() -> dict[str, pd.DataFrame]:
-    baseline_predictions = (
-        pd.read_csv(BASELINE_PREDICTIONS_PATH)
-        if BASELINE_PREDICTIONS_PATH.exists()
-        else pd.DataFrame()
+def read_json_file(path: Path) -> object:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def read_raw_metadata(path: Path) -> dict[str, object]:
+    candidates = [
+        path.with_suffix(".meta.json"),
+        Path(f"{path}.meta.json"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            metadata = read_json_file(candidate)
+            return metadata if isinstance(metadata, dict) else {}
+    return {}
+
+
+def build_raw_odds_api_response_frame(raw_odds_dir: Path = RAW_ODDS_DIR) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    if not raw_odds_dir.exists():
+        return pd.DataFrame()
+
+    payload_paths = sorted(
+        path
+        for path in raw_odds_dir.rglob("*.json")
+        if not path.name.endswith(".meta.json")
     )
+    for path in payload_paths:
+        payload = read_json_file(path)
+        metadata = read_raw_metadata(path)
+        relative_path = path.relative_to(raw_odds_dir).as_posix()
+        name_parts = path.name.split("__")
+        rows.append(
+            {
+                "source_file": relative_path,
+                "source_path": str(path),
+                "payload_type": name_parts[0] if name_parts else "unknown",
+                "sport_key": name_parts[1] if len(name_parts) > 1 else None,
+                "fetched_at": metadata.get("fetched_at"),
+                "file_size_bytes": path.stat().st_size,
+                "payload_json": json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                "metadata_json": json.dumps(metadata, ensure_ascii=False, separators=(",", ":")),
+            }
+        )
+
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        return frame
+    frame["fetched_at"] = pd.to_datetime(frame["fetched_at"], utc=True, errors="coerce")
+    return frame.sort_values("source_file").reset_index(drop=True)
+
+
+def read_optional_parquet(path: Path) -> pd.DataFrame:
+    return pd.read_parquet(path) if path.exists() else pd.DataFrame()
+
+
+def read_optional_csv(path: Path) -> pd.DataFrame:
+    return pd.read_csv(path) if path.exists() else pd.DataFrame()
+
+
+def normalize_nullable_integer_columns(
+    frame: pd.DataFrame,
+    columns: list[str],
+) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    normalized = frame.copy()
+    for column in columns:
+        if column in normalized.columns:
+            normalized[column] = pd.to_numeric(
+                normalized[column],
+                errors="coerce",
+            ).astype("Int64")
+    return normalized
+
+
+def read_enhanced_predictions_frame() -> pd.DataFrame:
+    return normalize_nullable_integer_columns(
+        read_optional_csv(ENHANCED_PREDICTIONS_PATH),
+        ["bookmaker_count"],
+    )
+
+
+def read_processed_frames() -> dict[str, pd.DataFrame]:
+    baseline_predictions = read_optional_csv(BASELINE_PREDICTIONS_PATH)
     return {
         "matches": pd.read_parquet(MATCHES_PATH),
         "teams": pd.read_parquet(TEAMS_PATH),
@@ -740,16 +1026,17 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         "team_goal_form_features": pd.read_parquet(TEAM_GOAL_FORM_FEATURES_PATH),
         "match_feature_store_2026": pd.read_parquet(MATCH_FEATURE_STORE_2026_PATH),
         "historical_match_feature_store": pd.read_parquet(HISTORICAL_MATCH_FEATURE_STORE_PATH),
-        "enhanced_predictions": (
-            pd.read_csv(ENHANCED_PREDICTIONS_PATH)
-            if ENHANCED_PREDICTIONS_PATH.exists()
-            else pd.DataFrame()
+        "odds_raw_api_responses": build_raw_odds_api_response_frame(),
+        "market_odds_snapshots": read_optional_parquet(MARKET_ODDS_SNAPSHOTS_PATH),
+        "match_odds_features": read_optional_parquet(MATCH_ODDS_FEATURES_PATH),
+        "historical_market_odds_snapshots": read_optional_parquet(
+            HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH
         ),
-        "scoreline_analysis": (
-            pd.read_csv(SCORELINE_ANALYSIS_PATH)
-            if SCORELINE_ANALYSIS_PATH.exists()
-            else pd.DataFrame()
+        "historical_match_odds_features": read_optional_parquet(
+            HISTORICAL_MATCH_ODDS_FEATURES_PATH
         ),
+        "enhanced_predictions": read_enhanced_predictions_frame(),
+        "scoreline_analysis": read_optional_csv(SCORELINE_ANALYSIS_PATH),
     }
 
 
@@ -769,23 +1056,8 @@ def dataframe_to_copy_buffer(frame: pd.DataFrame, columns: list[str]) -> io.Stri
 
 
 def truncate_tables(connection: psycopg.Connection, schema: str) -> None:
-    ordered_tables = [
-        "matches",
-        "teams",
-        "ratings",
-        "fixtures_2026",
-        "baseline_predictions",
-        "fifa_rankings_2026",
-        "squads_2026",
-        "world_cup_teams_2026",
-        "team_goal_form_features",
-        "match_feature_store_2026",
-        "historical_match_feature_store",
-        "enhanced_predictions",
-        "scoreline_analysis",
-    ]
     with connection.cursor() as cursor:
-        for table in ordered_tables:
+        for table in MANAGED_POSTGRES_TABLES:
             cursor.execute(f"TRUNCATE TABLE {qualified_table(schema, table)}")
     connection.commit()
 

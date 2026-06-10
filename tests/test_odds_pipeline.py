@@ -7,7 +7,7 @@ from src.odds_pipeline import (
     build_match_odds_features,
     discover_odds_files,
     implied_probabilities_from_odds,
-    prepare_historical_odds_features,
+    prepare_odds_features,
 )
 
 
@@ -129,7 +129,7 @@ def test_build_market_odds_snapshots_from_manual_csv(tmp_path: Path) -> None:
     assert features.loc[0, "favorite_outcome"] == "home_win"
 
 
-def test_prepare_historical_odds_features_accepts_manual_csv(tmp_path: Path) -> None:
+def test_prepare_odds_features_accepts_manual_csv_with_custom_outputs(tmp_path: Path) -> None:
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
     csv_path = tmp_path / "manual_odds.csv"
@@ -143,9 +143,11 @@ def test_prepare_historical_odds_features_accepts_manual_csv(tmp_path: Path) -> 
         encoding="utf-8",
     )
 
-    outputs = prepare_historical_odds_features(
+    outputs = prepare_odds_features(
         raw_odds_dir=raw_dir,
         manual_csv_path=csv_path,
+        market_odds_snapshots_path=tmp_path / "snapshots.parquet",
+        match_odds_features_path=tmp_path / "features.parquet",
     )
 
     assert outputs.snapshot_rows == 3
