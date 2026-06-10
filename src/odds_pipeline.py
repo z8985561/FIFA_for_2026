@@ -24,6 +24,14 @@ ODDS_FILE_GLOB = "odds__soccer_fifa_world_cup__*.json"
 META_FILE_SUFFIX = ".meta.json"
 H2H_MARKET_KEY = "h2h"
 DRAW_OUTCOME_NAME = "Draw"
+MANUAL_ODDS_REQUIRED_COLUMNS = [
+    "match_date",
+    "home_team",
+    "away_team",
+    "home_win_odds",
+    "draw_odds",
+    "away_win_odds",
+]
 
 
 @dataclass(frozen=True)
@@ -171,6 +179,98 @@ def build_market_odds_snapshots(raw_odds_dir: Path = RAW_ODDS_DIR) -> pd.DataFra
     ).reset_index(drop=True)
 
 
+def manual_csv_commence_time(row: pd.Series) -> pd.Timestamp:
+    if pd.notna(row.get("commence_time")):
+        return pd.to_datetime(row["commence_time"], utc=True, errors="raise")
+    return pd.to_datetime(row["match_date"], utc=True, errors="raise")
+
+
+def validate_manual_odds_csv(frame: pd.DataFrame, source_path: Path) -> None:
+    missing = [
+        column for column in MANUAL_ODDS_REQUIRED_COLUMNS
+        if column not in frame.columns
+    ]
+    if missing:
+        raise ValueError(f"{source_path} is missing required columns: {missing}")
+
+
+def build_market_odds_snapshots_from_manual_csv(csv_path: Path) -> pd.DataFrame:
+    frame = pd.read_csv(csv_path)
+    if frame.empty:
+        return pd.DataFrame()
+    validate_manual_odds_csv(frame, csv_path)
+
+    rows: list[dict[str, Any]] = []
+    for _, row in frame.iterrows():
+        home_team = normalize_team_name(str(row["home_team"]))
+        away_team = normalize_team_name(str(row["away_team"]))
+        commence_time = manual_csv_commence_time(row)
+        event_id = str(
+            row.get("event_id")
+            or f"manual-{commence_time.date()}-{home_team}-{away_team}"
+        )
+        bookmaker_key = str(row.get("bookmaker_key") or "manual")
+        bookmaker_title = str(row.get("bookmaker_title") or bookmaker_key)
+        fetched_at = pd.to_datetime(
+            row.get("fetched_at", commence_time),
+            utc=True,
+            errors="coerce",
+        )
+        bookmaker_last_update = pd.to_datetime(
+            row.get("bookmaker_last_update", fetched_at),
+            utc=True,
+            errors="coerce",
+        )
+        market_last_update = pd.to_datetime(
+            row.get("market_last_update", bookmaker_last_update),
+            utc=True,
+            errors="coerce",
+        )
+        prices = [
+            (home_team, row["home_win_odds"]),
+            (DRAW_OUTCOME_NAME, row["draw_odds"]),
+            (away_team, row["away_win_odds"]),
+        ]
+        for outcome_name, price in prices:
+            rows.append(
+                {
+                    "source_file": csv_path.name,
+                    "request_label": "manual_csv",
+                    "request_markets": H2H_MARKET_KEY,
+                    "request_regions": row.get("region"),
+                    "fetched_at": fetched_at,
+                    "event_id": event_id,
+                    "sport_key": "soccer_fifa_world_cup",
+                    "sport_title": "FIFA World Cup",
+                    "commence_time": commence_time,
+                    "home_team": home_team,
+                    "away_team": away_team,
+                    "bookmaker_key": bookmaker_key,
+                    "bookmaker_title": bookmaker_title,
+                    "bookmaker_last_update": bookmaker_last_update,
+                    "market_key": H2H_MARKET_KEY,
+                    "market_last_update": market_last_update,
+                    "outcome_name": outcome_name,
+                    "price": float(price),
+                    "point": None,
+                }
+            )
+
+    snapshots = pd.DataFrame(rows)
+    return snapshots.sort_values(
+        ["commence_time", "event_id", "bookmaker_key", "market_key", "outcome_name", "fetched_at"]
+    ).reset_index(drop=True)
+
+
+def combine_market_odds_snapshots(frames: list[pd.DataFrame]) -> pd.DataFrame:
+    non_empty_frames = [frame for frame in frames if not frame.empty]
+    if not non_empty_frames:
+        return pd.DataFrame()
+    return pd.concat(non_empty_frames, ignore_index=True).sort_values(
+        ["commence_time", "event_id", "bookmaker_key", "market_key", "outcome_name", "fetched_at"]
+    ).reset_index(drop=True)
+
+
 def latest_market_rows(frame: pd.DataFrame) -> pd.DataFrame:
     ordered = frame.sort_values(
         [
@@ -300,10 +400,14 @@ def prepare_odds_features(
     *,
     market_odds_snapshots_path: Path = MARKET_ODDS_SNAPSHOTS_PATH,
     match_odds_features_path: Path = MATCH_ODDS_FEATURES_PATH,
+    manual_csv_path: Path | None = None,
 ) -> OddsPipelineOutputs:
     ensure_project_directories()
 
-    market_odds_snapshots = build_market_odds_snapshots(raw_odds_dir)
+    frames = [build_market_odds_snapshots(raw_odds_dir)]
+    if manual_csv_path is not None and manual_csv_path.exists():
+        frames.append(build_market_odds_snapshots_from_manual_csv(manual_csv_path))
+    market_odds_snapshots = combine_market_odds_snapshots(frames)
     match_odds_features = build_match_odds_features(market_odds_snapshots)
 
     market_odds_snapshots.to_parquet(market_odds_snapshots_path, index=False)
@@ -314,17 +418,21 @@ def prepare_odds_features(
         match_odds_features_path=str(match_odds_features_path),
         snapshot_rows=len(market_odds_snapshots),
         feature_rows=len(match_odds_features),
-        source_files=len(discover_odds_files(raw_odds_dir)),
+        source_files=len(discover_odds_files(raw_odds_dir))
+        + int(manual_csv_path is not None and manual_csv_path.exists()),
     )
 
 
 def prepare_historical_odds_features(
     raw_odds_dir: Path = RAW_HISTORICAL_ODDS_DIR,
+    *,
+    manual_csv_path: Path | None = None,
 ) -> OddsPipelineOutputs:
     return prepare_odds_features(
         raw_odds_dir=raw_odds_dir,
         market_odds_snapshots_path=HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH,
         match_odds_features_path=HISTORICAL_MATCH_ODDS_FEATURES_PATH,
+        manual_csv_path=manual_csv_path,
     )
 
 
@@ -336,15 +444,27 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Write outputs to the historical odds feature paths.",
     )
+    parser.add_argument(
+        "--manual-csv",
+        type=Path,
+        default=None,
+        help="Optional manually curated 1X2 odds CSV to merge into the pipeline.",
+    )
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
     outputs = (
-        prepare_historical_odds_features(raw_odds_dir=args.raw_dir)
+        prepare_historical_odds_features(
+            raw_odds_dir=args.raw_dir,
+            manual_csv_path=args.manual_csv,
+        )
         if args.historical
-        else prepare_odds_features(raw_odds_dir=args.raw_dir)
+        else prepare_odds_features(
+            raw_odds_dir=args.raw_dir,
+            manual_csv_path=args.manual_csv,
+        )
     )
     for key, value in asdict(outputs).items():
         print(f"{key}: {value}")

@@ -284,6 +284,26 @@ python -m src.odds_pipeline --historical --raw-dir data/raw/odds/historical
 python -m src.world_cup_backtest --years 2018 2022
 ```
 
+If odds are available as a manually curated CSV, use the same pipeline with `--manual-csv`:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.odds_pipeline --historical --manual-csv data/raw/odds/historical/manual_1x2_odds.csv
+python -m src.world_cup_backtest --years 2018 2022
+```
+
+Manual CSV required columns:
+
+- `match_date`
+- `home_team`
+- `away_team`
+- `home_win_odds`
+- `draw_odds`
+- `away_win_odds`
+
+Optional columns include `bookmaker_key`, `bookmaker_title`, `event_id`, `commence_time`, and
+`fetched_at`.
+
 When `data/features/historical_match_odds_features.parquet` exists, the World Cup backtest
 adds bookmaker-only (`market_outcome_*`) and model-market blend (`blended_outcome_*`) metrics.
 If historical odds are absent, the backtest still runs and reports `market_odds_coverage = 0`.

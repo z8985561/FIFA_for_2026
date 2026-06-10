@@ -3,9 +3,11 @@ from pathlib import Path
 
 from src.odds_pipeline import (
     build_market_odds_snapshots,
+    build_market_odds_snapshots_from_manual_csv,
     build_match_odds_features,
     discover_odds_files,
     implied_probabilities_from_odds,
+    prepare_historical_odds_features,
 )
 
 
@@ -102,3 +104,50 @@ def test_build_match_odds_features_uses_latest_snapshot_per_bookmaker(tmp_path: 
     assert round(row["avg_market_overround"], 8) == round(expected_overround, 8)
     assert round(row["consensus_fair_probability_sum"], 8) == 1.0
     assert row["favorite_outcome"] == "home_win"
+
+
+def test_build_market_odds_snapshots_from_manual_csv(tmp_path: Path) -> None:
+    csv_path = tmp_path / "manual_odds.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "match_date,home_team,away_team,home_win_odds,draw_odds,away_win_odds,bookmaker_key",
+                "2022-11-22,Argentina,Saudi Arabia,1.20,6.50,15.00,ticai",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    snapshots = build_market_odds_snapshots_from_manual_csv(csv_path)
+    features = build_match_odds_features(snapshots)
+
+    assert len(snapshots) == 3
+    assert len(features) == 1
+    assert features.loc[0, "home_team"] == "Argentina"
+    assert features.loc[0, "away_team"] == "Saudi Arabia"
+    assert features.loc[0, "bookmaker_count"] == 1
+    assert features.loc[0, "favorite_outcome"] == "home_win"
+
+
+def test_prepare_historical_odds_features_accepts_manual_csv(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    csv_path = tmp_path / "manual_odds.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "match_date,home_team,away_team,home_win_odds,draw_odds,away_win_odds",
+                "2022-11-22,Argentina,Saudi Arabia,1.20,6.50,15.00",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    outputs = prepare_historical_odds_features(
+        raw_odds_dir=raw_dir,
+        manual_csv_path=csv_path,
+    )
+
+    assert outputs.snapshot_rows == 3
+    assert outputs.feature_rows == 1
+    assert outputs.source_files == 1
