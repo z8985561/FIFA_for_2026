@@ -20,9 +20,11 @@ from .enhanced_features import (
     enhanced_feature_columns,
 )
 from .feature_store import prepare_match_feature_store
+from .lineups_pipeline import TEAM_NAME_ZH, prepare_predicted_lineups
 from .project_paths import (
     MATCH_FEATURE_STORE_2026_PATH,
     MATCHES_PATH,
+    PREDICTED_LINEUPS_PATH,
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_METRICS_PATH,
     ensure_project_directories,
@@ -30,6 +32,56 @@ from .project_paths import (
 
 DEFAULT_MAX_GOALS = 7
 DEFAULT_TOP_SCORES = 10
+MAX_LINEUP_LOG_ADJUSTMENT = 0.12
+
+PLAYER_ATTACK_IMPACTS = {
+    "Christian Pulisic": 0.05,
+    "Son Heung-min": 0.055,
+    "Patrik Schick": 0.05,
+    "Julio Enciso": 0.04,
+    "Hwang Hee-chan": 0.035,
+    "Folarin Balogun": 0.035,
+    "Miguel Almiron": 0.035,
+    "Jonathan David": 0.04,
+    "Cyle Larin": 0.025,
+    "Raul Jimenez": 0.03,
+    "Julian Quinones": 0.025,
+    "Lyle Foster": 0.025,
+    "Antonio Sanabria": 0.025,
+    "Lee Jae-sung": 0.018,
+    "Malik Tillman": 0.02,
+    "Pavel Sulc": 0.018,
+    "Lukas Provod": 0.018,
+}
+
+PLAYER_DEFENSE_IMPACTS = {
+    "Kim Min-jae": 0.045,
+    "Gustavo Gomez": 0.04,
+    "Tyler Adams": 0.03,
+    "Tomas Soucek": 0.025,
+    "Edson Alvarez": 0.03,
+    "Ronwen Williams": 0.02,
+    "Guillermo Ochoa": 0.018,
+    "Alistair Johnston": 0.018,
+    "Stephen Eustaquio": 0.018,
+    "Chris Richards": 0.018,
+    "Omar Alderete": 0.018,
+    "Junior Alonso": 0.018,
+}
+
+FORMATION_ATTACK_IMPACTS = {
+    "3-4-3": 0.018,
+    "4-3-3": 0.014,
+    "3-4-2-1": 0.01,
+    "4-2-3-1": 0.004,
+}
+
+FORMATION_DEFENSE_IMPACTS = {
+    "4-2-3-1": 0.01,
+    "3-4-2-1": 0.006,
+    "4-3-3": 0.0,
+    "3-4-3": -0.004,
+}
 
 
 @dataclass(frozen=True)
@@ -58,6 +110,8 @@ def ensure_scoreline_inputs() -> None:
         prepare_research_data()
     if not MATCH_FEATURE_STORE_2026_PATH.exists():
         prepare_match_feature_store()
+    if not PREDICTED_LINEUPS_PATH.exists():
+        prepare_predicted_lineups()
 
 
 def train_scoreline_models(
@@ -108,6 +162,104 @@ def train_scoreline_models(
 
 def clip_goal_rates(values: np.ndarray) -> np.ndarray:
     return np.clip(np.asarray(values, dtype=float), 0.05, 6.0)
+
+
+def clamp_lineup_adjustment(value: float) -> float:
+    return float(np.clip(value, -MAX_LINEUP_LOG_ADJUSTMENT, MAX_LINEUP_LOG_ADJUSTMENT))
+
+
+def lineup_adjustment_summary(predicted_lineups: pd.DataFrame) -> pd.DataFrame:
+    if predicted_lineups.empty:
+        return pd.DataFrame(
+            columns=[
+                "match_no",
+                "team_name",
+                "lineup_attack_impact",
+                "lineup_defense_impact",
+                "lineup_status",
+                "formation",
+            ]
+        )
+
+    rows: list[dict[str, object]] = []
+    for (match_no, team_name), group in predicted_lineups.groupby(
+        ["match_no", "team_name"],
+        sort=True,
+    ):
+        formation = str(group["formation"].iloc[0])
+        attack_impact = FORMATION_ATTACK_IMPACTS.get(formation, 0.0) + float(
+            group["player_name"].map(PLAYER_ATTACK_IMPACTS).fillna(0.0).sum()
+        )
+        defense_impact = FORMATION_DEFENSE_IMPACTS.get(formation, 0.0) + float(
+            group["player_name"].map(PLAYER_DEFENSE_IMPACTS).fillna(0.0).sum()
+        )
+        rows.append(
+            {
+                "match_no": int(match_no),
+                "team_name": str(team_name),
+                "lineup_attack_impact": attack_impact,
+                "lineup_defense_impact": defense_impact,
+                "lineup_status": str(group["lineup_status"].iloc[0]),
+                "formation": formation,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def lineup_adjustment_for_team(
+    lineup_summary: pd.DataFrame,
+    *,
+    match_no: int,
+    team_name: str,
+) -> dict[str, object]:
+    if lineup_summary.empty:
+        return {
+            "lineup_attack_impact": 0.0,
+            "lineup_defense_impact": 0.0,
+            "lineup_status": None,
+            "formation": None,
+        }
+    rows = lineup_summary.loc[
+        lineup_summary["match_no"].eq(match_no) & lineup_summary["team_name"].eq(team_name)
+    ]
+    if rows.empty:
+        return {
+            "lineup_attack_impact": 0.0,
+            "lineup_defense_impact": 0.0,
+            "lineup_status": None,
+            "formation": None,
+        }
+    return rows.iloc[0].to_dict()
+
+
+def apply_lineup_goal_rate_adjustment(
+    *,
+    home_goal_rate: float,
+    away_goal_rate: float,
+    home_lineup: dict[str, object],
+    away_lineup: dict[str, object],
+) -> dict[str, float]:
+    home_log_adjustment = clamp_lineup_adjustment(
+        float(home_lineup["lineup_attack_impact"])
+        - float(away_lineup["lineup_defense_impact"])
+    )
+    away_log_adjustment = clamp_lineup_adjustment(
+        float(away_lineup["lineup_attack_impact"])
+        - float(home_lineup["lineup_defense_impact"])
+    )
+    home_factor = math.exp(home_log_adjustment)
+    away_factor = math.exp(away_log_adjustment)
+    adjusted_rates = clip_goal_rates(
+        np.array([home_goal_rate * home_factor, away_goal_rate * away_factor])
+    )
+    return {
+        "home_lineup_log_adjustment": home_log_adjustment,
+        "away_lineup_log_adjustment": away_log_adjustment,
+        "home_lineup_goal_factor": float(home_factor),
+        "away_lineup_goal_factor": float(away_factor),
+        "home_expected_goals": float(adjusted_rates[0]),
+        "away_expected_goals": float(adjusted_rates[1]),
+    }
 
 
 def poisson_probability(goals: int, rate: float) -> float:
@@ -263,11 +415,15 @@ def build_scoreline_analysis(
     limit: int,
     max_goals: int,
     top_scores: int,
+    predicted_lineups: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     columns = enhanced_feature_columns()
     fixtures = fixture_features.sort_values(["date_et", "match_no"]).head(limit).copy()
     home_rates = clip_goal_rates(home_model.predict(fixtures[columns]))
     away_rates = clip_goal_rates(away_model.predict(fixtures[columns]))
+    lineup_summary = lineup_adjustment_summary(
+        pd.DataFrame() if predicted_lineups is None else predicted_lineups
+    )
 
     rows = []
     for row, home_rate, away_rate in zip(
@@ -276,9 +432,25 @@ def build_scoreline_analysis(
         away_rates,
         strict=True,
     ):
+        home_lineup = lineup_adjustment_for_team(
+            lineup_summary,
+            match_no=int(row.match_no),
+            team_name=str(row.home_team),
+        )
+        away_lineup = lineup_adjustment_for_team(
+            lineup_summary,
+            match_no=int(row.match_no),
+            team_name=str(row.away_team),
+        )
+        lineup_adjustment = apply_lineup_goal_rate_adjustment(
+            home_goal_rate=float(home_rate),
+            away_goal_rate=float(away_rate),
+            home_lineup=home_lineup,
+            away_lineup=away_lineup,
+        )
         matrix = scoreline_matrix(
-            float(home_rate),
-            float(away_rate),
+            float(lineup_adjustment["home_expected_goals"]),
+            float(lineup_adjustment["away_expected_goals"]),
             max_goals=max_goals,
             rho=rho,
         )
@@ -293,8 +465,24 @@ def build_scoreline_analysis(
                     "date_et": row.date_et,
                     "home_team": row.home_team,
                     "away_team": row.away_team,
-                    "home_expected_goals": float(home_rate),
-                    "away_expected_goals": float(away_rate),
+                    "home_team_zh": TEAM_NAME_ZH.get(str(row.home_team), str(row.home_team)),
+                    "away_team_zh": TEAM_NAME_ZH.get(str(row.away_team), str(row.away_team)),
+                    "raw_home_expected_goals": float(home_rate),
+                    "raw_away_expected_goals": float(away_rate),
+                    "home_expected_goals": float(lineup_adjustment["home_expected_goals"]),
+                    "away_expected_goals": float(lineup_adjustment["away_expected_goals"]),
+                    "home_lineup_goal_factor": lineup_adjustment["home_lineup_goal_factor"],
+                    "away_lineup_goal_factor": lineup_adjustment["away_lineup_goal_factor"],
+                    "home_lineup_log_adjustment": lineup_adjustment[
+                        "home_lineup_log_adjustment"
+                    ],
+                    "away_lineup_log_adjustment": lineup_adjustment[
+                        "away_lineup_log_adjustment"
+                    ],
+                    "home_lineup_status": home_lineup["lineup_status"],
+                    "away_lineup_status": away_lineup["lineup_status"],
+                    "home_formation": home_lineup["formation"],
+                    "away_formation": away_lineup["formation"],
                     "dixon_coles_rho": rho,
                     **summary,
                     "scoreline_rank": rank,
@@ -317,6 +505,7 @@ def prepare_scoreline_analysis(
 
     matches = pd.read_parquet(MATCHES_PATH)
     match_features = pd.read_parquet(MATCH_FEATURE_STORE_2026_PATH)
+    predicted_lineups = pd.read_parquet(PREDICTED_LINEUPS_PATH)
     historical_features = build_historical_enhanced_features(matches)
     fixture_features = build_2026_enhanced_features(match_features, matches)
 
@@ -329,6 +518,7 @@ def prepare_scoreline_analysis(
         limit=limit,
         max_goals=max_goals,
         top_scores=top_scores,
+        predicted_lineups=predicted_lineups,
     )
 
     SCORELINE_METRICS_PATH.write_text(

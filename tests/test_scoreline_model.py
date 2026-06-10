@@ -1,8 +1,10 @@
 import pandas as pd
 
 from src.scoreline_model import (
+    apply_lineup_goal_rate_adjustment,
     dixon_coles_factor,
     inflate_scoreline_probability,
+    lineup_adjustment_summary,
     matrix_summary,
     scoreline_matrix,
 )
@@ -47,3 +49,33 @@ def test_inflate_scoreline_probability_boosts_target_and_renormalizes() -> None:
 
     assert after > before
     assert round(adjusted["probability"].sum(), 8) == 1.0
+
+
+def test_lineup_adjustment_summary_scores_key_starters() -> None:
+    lineups = pd.DataFrame(
+        {
+            "match_no": [1, 1],
+            "team_name": ["South Korea", "South Korea"],
+            "lineup_status": ["predicted", "predicted"],
+            "formation": ["4-2-3-1", "4-2-3-1"],
+            "player_name": ["Son Heung-min", "Kim Min-jae"],
+        }
+    )
+
+    summary = lineup_adjustment_summary(lineups)
+
+    assert summary.loc[0, "lineup_attack_impact"] > 0
+    assert summary.loc[0, "lineup_defense_impact"] > 0
+
+
+def test_apply_lineup_goal_rate_adjustment_keeps_rates_positive() -> None:
+    adjusted = apply_lineup_goal_rate_adjustment(
+        home_goal_rate=1.5,
+        away_goal_rate=1.0,
+        home_lineup={"lineup_attack_impact": 0.08, "lineup_defense_impact": 0.03},
+        away_lineup={"lineup_attack_impact": 0.02, "lineup_defense_impact": 0.01},
+    )
+
+    assert adjusted["home_expected_goals"] > 1.5
+    assert adjusted["away_expected_goals"] < 1.0
+    assert adjusted["home_lineup_goal_factor"] > 1.0
