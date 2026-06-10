@@ -32,13 +32,19 @@ from .project_paths import (
     PREDICTED_LINEUPS_PATH,
     RATINGS_PATH,
     RAW_ODDS_DIR,
+    SCORE_ODDS_COLLECTION_STATUS_PATH,
+    SCORE_ODDS_FEATURES_PATH,
+    SCORE_ODDS_SNAPSHOTS_PATH,
     SCORELINE_ANALYSIS_PATH,
+    SCORELINE_VALUE_BETS_PATH,
     SQUADS_2026_PATH,
     TEAM_GOAL_FORM_FEATURES_PATH,
     TEAMS_PATH,
     WORLD_CUP_TEAMS_2026_PATH,
 )
+from .score_odds_pipeline import prepare_score_odds_features
 from .scoreline_model import prepare_scoreline_analysis
+from .value_bets_report import prepare_value_bets_report
 from .world_cup_identity import prepare_world_cup_identity_data
 
 DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
@@ -235,6 +241,95 @@ PREDICTED_LINEUP_COLUMNS = [
     "source_url",
 ]
 
+SCORE_ODDS_SNAPSHOT_COLUMNS = [
+    "match_no",
+    "stage",
+    "group_name",
+    "date_et",
+    "home_team",
+    "away_team",
+    "home_team_zh",
+    "away_team_zh",
+    "scoreline",
+    "bookmaker_key",
+    "bookmaker_title",
+    "american_odds",
+    "decimal_odds",
+    "raw_implied_probability",
+    "source_name",
+    "source_url",
+    "source_match_id",
+    "fetched_at",
+]
+
+SCORE_ODDS_FEATURE_COLUMNS = [
+    "match_no",
+    "stage",
+    "group_name",
+    "date_et",
+    "home_team",
+    "away_team",
+    "home_team_zh",
+    "away_team_zh",
+    "scoreline",
+    "best_decimal_odds",
+    "average_decimal_odds",
+    "raw_market_implied_probability",
+    "bookmaker_count",
+    "latest_fetched_at",
+    "source_names",
+    "source_urls",
+    "source_match_ids",
+    "listed_score_market_overround_proxy",
+    "listed_score_fair_probability",
+]
+
+SCORE_ODDS_COLLECTION_STATUS_COLUMNS = [
+    "match_no",
+    "date_et",
+    "home_team",
+    "away_team",
+    "home_team_zh",
+    "away_team_zh",
+    "source_name",
+    "source_url",
+    "source_match_id",
+    "attempted_urls",
+    "status",
+    "scoreline_count",
+    "error_message",
+    "fetched_at",
+]
+
+SCORELINE_VALUE_BET_COLUMNS = [
+    "match_no",
+    "stage",
+    "group_name",
+    "date_et",
+    "home_team",
+    "away_team",
+    "home_team_zh",
+    "away_team_zh",
+    "scoreline_rank",
+    "scoreline",
+    "model_probability",
+    "model_fair_odds",
+    "best_decimal_odds",
+    "average_decimal_odds",
+    "raw_market_implied_probability",
+    "listed_score_fair_probability",
+    "listed_score_market_overround_proxy",
+    "market_edge",
+    "kelly_fraction",
+    "has_score_odds",
+    "value_signal",
+    "bookmaker_count",
+    "source_names",
+    "source_urls",
+    "source_match_ids",
+    "latest_fetched_at",
+]
+
 
 POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
     "matches": [
@@ -388,8 +483,12 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
     "historical_market_odds_snapshots": MARKET_ODDS_SNAPSHOT_COLUMNS,
     "historical_match_odds_features": MATCH_ODDS_FEATURE_COLUMNS,
     "predicted_lineups": PREDICTED_LINEUP_COLUMNS,
+    "score_odds_snapshots": SCORE_ODDS_SNAPSHOT_COLUMNS,
+    "score_odds_features": SCORE_ODDS_FEATURE_COLUMNS,
+    "score_odds_collection_status": SCORE_ODDS_COLLECTION_STATUS_COLUMNS,
     "enhanced_predictions": ENHANCED_PREDICTION_COLUMNS,
     "scoreline_analysis": SCORELINE_ANALYSIS_COLUMNS,
+    "scoreline_value_bets": SCORELINE_VALUE_BET_COLUMNS,
 }
 
 MANAGED_POSTGRES_TABLES = tuple(POSTGRES_TABLE_COLUMNS)
@@ -455,6 +554,10 @@ def ensure_processed_data() -> None:
         HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH,
         HISTORICAL_MATCH_ODDS_FEATURES_PATH,
         PREDICTED_LINEUPS_PATH,
+        SCORE_ODDS_SNAPSHOTS_PATH,
+        SCORE_ODDS_FEATURES_PATH,
+        SCORE_ODDS_COLLECTION_STATUS_PATH,
+        SCORELINE_VALUE_BETS_PATH,
     ]
     if any(not path.exists() for path in required_paths):
         prepare_research_data()
@@ -464,6 +567,8 @@ def ensure_processed_data() -> None:
         prepare_enhanced_outputs()
         prepare_scoreline_analysis()
         prepare_predicted_lineups()
+        prepare_score_odds_features()
+        prepare_value_bets_report()
 
 
 def quote_identifier(identifier: str) -> str:
@@ -498,8 +603,15 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         "historical_match_odds_features",
     )
     predicted_lineups_table = qualified_table(schema, "predicted_lineups")
+    score_odds_snapshots_table = qualified_table(schema, "score_odds_snapshots")
+    score_odds_features_table = qualified_table(schema, "score_odds_features")
+    score_odds_collection_status_table = qualified_table(
+        schema,
+        "score_odds_collection_status",
+    )
     enhanced_predictions_table = qualified_table(schema, "enhanced_predictions")
     scoreline_analysis_table = qualified_table(schema, "scoreline_analysis")
+    scoreline_value_bets_table = qualified_table(schema, "scoreline_value_bets")
     quoted_schema = quote_identifier(schema)
     historical_feature_columns_sql = ",\n            ".join(
         f"{quote_identifier(column)} DOUBLE PRECISION NOT NULL"
@@ -829,6 +941,71 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {score_odds_snapshots_table} (
+            match_no BIGINT NOT NULL,
+            stage TEXT NOT NULL,
+            group_name TEXT,
+            date_et DATE NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            home_team_zh TEXT,
+            away_team_zh TEXT,
+            scoreline TEXT NOT NULL,
+            bookmaker_key TEXT NOT NULL,
+            bookmaker_title TEXT NOT NULL,
+            american_odds TEXT NOT NULL,
+            decimal_odds DOUBLE PRECISION NOT NULL,
+            raw_implied_probability DOUBLE PRECISION NOT NULL,
+            source_name TEXT NOT NULL,
+            source_url TEXT,
+            source_match_id TEXT,
+            fetched_at TIMESTAMPTZ NOT NULL
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {score_odds_features_table} (
+            match_no BIGINT NOT NULL,
+            stage TEXT NOT NULL,
+            group_name TEXT,
+            date_et DATE NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            home_team_zh TEXT,
+            away_team_zh TEXT,
+            scoreline TEXT NOT NULL,
+            best_decimal_odds DOUBLE PRECISION NOT NULL,
+            average_decimal_odds DOUBLE PRECISION NOT NULL,
+            raw_market_implied_probability DOUBLE PRECISION NOT NULL,
+            bookmaker_count BIGINT NOT NULL,
+            latest_fetched_at TIMESTAMPTZ NOT NULL,
+            source_names TEXT,
+            source_urls TEXT,
+            source_match_ids TEXT,
+            listed_score_market_overround_proxy DOUBLE PRECISION NOT NULL,
+            listed_score_fair_probability DOUBLE PRECISION NOT NULL,
+            PRIMARY KEY (match_no, scoreline)
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {score_odds_collection_status_table} (
+            match_no BIGINT NOT NULL,
+            date_et DATE NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            home_team_zh TEXT,
+            away_team_zh TEXT,
+            source_name TEXT NOT NULL,
+            source_url TEXT,
+            source_match_id TEXT,
+            attempted_urls TEXT,
+            status TEXT NOT NULL,
+            scoreline_count BIGINT NOT NULL,
+            error_message TEXT,
+            fetched_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (match_no, source_name)
+        )
+        """,
+        f"""
         CREATE TABLE IF NOT EXISTS {enhanced_predictions_table} (
             match_no BIGINT PRIMARY KEY,
             stage TEXT NOT NULL,
@@ -915,6 +1092,37 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {scoreline_value_bets_table} (
+            match_no BIGINT NOT NULL,
+            stage TEXT NOT NULL,
+            group_name TEXT,
+            date_et DATE NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            home_team_zh TEXT,
+            away_team_zh TEXT,
+            scoreline_rank INTEGER NOT NULL,
+            scoreline TEXT NOT NULL,
+            model_probability DOUBLE PRECISION NOT NULL,
+            model_fair_odds DOUBLE PRECISION NOT NULL,
+            best_decimal_odds DOUBLE PRECISION,
+            average_decimal_odds DOUBLE PRECISION,
+            raw_market_implied_probability DOUBLE PRECISION,
+            listed_score_fair_probability DOUBLE PRECISION,
+            listed_score_market_overround_proxy DOUBLE PRECISION,
+            market_edge DOUBLE PRECISION,
+            kelly_fraction DOUBLE PRECISION NOT NULL,
+            has_score_odds BOOLEAN NOT NULL,
+            value_signal TEXT NOT NULL,
+            bookmaker_count BIGINT,
+            source_names TEXT,
+            source_urls TEXT,
+            source_match_ids TEXT,
+            latest_fetched_at TIMESTAMPTZ,
+            PRIMARY KEY (match_no, scoreline_rank)
+        )
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_matches_match_date
         ON {matches_table} (match_date)
         """,
@@ -987,12 +1195,36 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         ON {predicted_lineups_table} (team_name)
         """,
         f"""
+        CREATE INDEX IF NOT EXISTS idx_score_odds_snapshots_match
+        ON {score_odds_snapshots_table} (match_no)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_score_odds_snapshots_source_match
+        ON {score_odds_snapshots_table} (source_name, source_match_id)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_score_odds_features_match
+        ON {score_odds_features_table} (match_no)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_score_odds_collection_status_status
+        ON {score_odds_collection_status_table} (status)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_score_odds_collection_status_source_match
+        ON {score_odds_collection_status_table} (source_name, source_match_id)
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_enhanced_predictions_group
         ON {enhanced_predictions_table} (group_name)
         """,
         f"""
         CREATE INDEX IF NOT EXISTS idx_scoreline_analysis_match
         ON {scoreline_analysis_table} (match_no)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_scoreline_value_bets_signal
+        ON {scoreline_value_bets_table} (value_signal)
         """,
     )
 
@@ -1090,6 +1322,13 @@ def read_enhanced_predictions_frame() -> pd.DataFrame:
     )
 
 
+def read_scoreline_value_bets_frame() -> pd.DataFrame:
+    return normalize_nullable_integer_columns(
+        read_optional_csv(SCORELINE_VALUE_BETS_PATH),
+        ["scoreline_rank", "bookmaker_count"],
+    )
+
+
 def read_processed_frames() -> dict[str, pd.DataFrame]:
     baseline_predictions = read_optional_csv(BASELINE_PREDICTIONS_PATH)
     return {
@@ -1114,13 +1353,23 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
             HISTORICAL_MATCH_ODDS_FEATURES_PATH
         ),
         "predicted_lineups": read_optional_parquet(PREDICTED_LINEUPS_PATH),
+        "score_odds_snapshots": read_optional_parquet(SCORE_ODDS_SNAPSHOTS_PATH),
+        "score_odds_features": read_optional_parquet(SCORE_ODDS_FEATURES_PATH),
+        "score_odds_collection_status": read_optional_parquet(
+            SCORE_ODDS_COLLECTION_STATUS_PATH
+        ),
         "enhanced_predictions": read_enhanced_predictions_frame(),
         "scoreline_analysis": read_optional_csv(SCORELINE_ANALYSIS_PATH),
+        "scoreline_value_bets": read_scoreline_value_bets_frame(),
     }
 
 
 def dataframe_to_copy_buffer(frame: pd.DataFrame, columns: list[str]) -> io.StringIO:
-    normalized = frame[columns].copy()
+    normalized = frame.copy()
+    for column in columns:
+        if column not in normalized.columns:
+            normalized[column] = pd.NA
+    normalized = normalized[columns].copy()
     buffer = io.StringIO()
     normalized.to_csv(
         buffer,

@@ -10,6 +10,8 @@ def test_view_sql_contains_expected_view_names() -> None:
         "historical_match_odds_feature_summary",
         "match_odds_feature_summary",
         "scoreline_prediction_summary",
+        "score_odds_collection_status_summary",
+        "scoreline_value_bet_summary",
         "odds_raw_api_response_inventory",
         "predicted_lineup_summary",
         "team_latest_snapshot",
@@ -33,3 +35,8 @@ def test_view_sql_targets_selected_schema() -> None:
         in statements["odds_raw_api_response_inventory"]
     )
     assert '"analytics"."predicted_lineups"' in statements["predicted_lineup_summary"]
+    assert (
+        '"analytics"."score_odds_collection_status"'
+        in statements["score_odds_collection_status_summary"]
+    )
+    assert '"analytics"."scoreline_value_bets"' in statements["scoreline_value_bet_summary"]

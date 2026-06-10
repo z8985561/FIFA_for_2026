@@ -41,9 +41,11 @@ def view_sql(schema: str) -> dict[str, str]:
     predictions = qualified_table(schema, "baseline_predictions")
     enhanced_predictions = qualified_table(schema, "enhanced_predictions")
     scoreline_analysis = qualified_table(schema, "scoreline_analysis")
+    scoreline_value_bets = qualified_table(schema, "scoreline_value_bets")
     odds_raw_api_responses = qualified_table(schema, "odds_raw_api_responses")
     match_odds_features = qualified_table(schema, "match_odds_features")
     historical_match_odds_features = qualified_table(schema, "historical_match_odds_features")
+    score_odds_collection_status = qualified_table(schema, "score_odds_collection_status")
     predicted_lineups = qualified_table(schema, "predicted_lineups")
     rankings = qualified_table(schema, "fifa_rankings_2026")
     squads = qualified_table(schema, "squads_2026")
@@ -201,6 +203,48 @@ def view_sql(schema: str) -> dict[str, str]:
                 scoreline,
                 ROUND(scoreline_probability::numeric, 4) AS scoreline_probability
             FROM {scoreline_analysis}
+        """,
+        "score_odds_collection_status_summary": f"""
+            CREATE OR REPLACE VIEW {qs}.score_odds_collection_status_summary AS
+            SELECT
+                match_no,
+                date_et,
+                home_team_zh || ' vs ' || away_team_zh AS matchup_zh,
+                source_name,
+                source_match_id,
+                status,
+                scoreline_count,
+                source_url,
+                attempted_urls,
+                error_message,
+                fetched_at
+            FROM {score_odds_collection_status}
+            ORDER BY match_no, source_name
+        """,
+        "scoreline_value_bet_summary": f"""
+            CREATE OR REPLACE VIEW {qs}.scoreline_value_bet_summary AS
+            SELECT
+                match_no,
+                stage,
+                group_name,
+                date_et,
+                home_team_zh || ' vs ' || away_team_zh AS matchup_zh,
+                scoreline_rank,
+                scoreline,
+                ROUND(model_probability::numeric, 4) AS model_probability,
+                ROUND(model_fair_odds::numeric, 2) AS model_fair_odds,
+                ROUND(best_decimal_odds::numeric, 2) AS best_decimal_odds,
+                ROUND(market_edge::numeric, 4) AS market_edge,
+                ROUND(kelly_fraction::numeric, 4) AS kelly_fraction,
+                has_score_odds,
+                value_signal,
+                bookmaker_count,
+                source_names,
+                source_match_ids,
+                source_urls,
+                latest_fetched_at
+            FROM {scoreline_value_bets}
+            ORDER BY has_score_odds DESC, market_edge DESC NULLS LAST, model_probability DESC
         """,
         "odds_raw_api_response_inventory": f"""
             CREATE OR REPLACE VIEW {qs}.odds_raw_api_response_inventory AS

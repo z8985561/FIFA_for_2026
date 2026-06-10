@@ -28,10 +28,13 @@ MARKET_ODDS_SNAPSHOTS_PATH = PROCESSED_DATA_DIR / "market_odds_snapshots.parquet
 HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH = (
     PROCESSED_DATA_DIR / "historical_market_odds_snapshots.parquet"
 )
+SCORE_ODDS_SNAPSHOTS_PATH = PROCESSED_DATA_DIR / "score_odds_snapshots.parquet"
+SCORE_ODDS_COLLECTION_STATUS_PATH = PROCESSED_DATA_DIR / "score_odds_collection_status.parquet"
 MATCH_FEATURE_STORE_2026_PATH = FEATURE_DATA_DIR / "match_feature_store_2026.parquet"
 HISTORICAL_MATCH_FEATURE_STORE_PATH = FEATURE_DATA_DIR / "historical_match_feature_store.parquet"
 MATCH_ODDS_FEATURES_PATH = FEATURE_DATA_DIR / "match_odds_features.parquet"
 HISTORICAL_MATCH_ODDS_FEATURES_PATH = FEATURE_DATA_DIR / "historical_match_odds_features.parquet"
+SCORE_ODDS_FEATURES_PATH = FEATURE_DATA_DIR / "score_odds_features.parquet"
 DATABASE_PATH = PROCESSED_DATA_DIR / "fifa_research.duckdb"
 
 BASELINE_METRICS_PATH = REPORTS_DIR / "baseline_metrics.json"
@@ -41,6 +44,7 @@ ENHANCED_PREDICTIONS_PATH = REPORTS_DIR / "world_cup_2026_enhanced_predictions.c
 TOURNAMENT_SIMULATION_PATH = REPORTS_DIR / "world_cup_2026_tournament_simulation.csv"
 SCORELINE_METRICS_PATH = REPORTS_DIR / "scoreline_model_metrics.json"
 SCORELINE_ANALYSIS_PATH = REPORTS_DIR / "world_cup_2026_scoreline_analysis.csv"
+SCORELINE_VALUE_BETS_PATH = REPORTS_DIR / "scoreline_value_bets.csv"
 WORLD_CUP_BACKTEST_METRICS_PATH = REPORTS_DIR / "world_cup_backtest_metrics.csv"
 WORLD_CUP_BACKTEST_PREDICTIONS_PATH = REPORTS_DIR / "world_cup_backtest_predictions.csv"
 WORLD_CUP_BACKTEST_CALIBRATION_PATH = REPORTS_DIR / "world_cup_backtest_calibration.csv"

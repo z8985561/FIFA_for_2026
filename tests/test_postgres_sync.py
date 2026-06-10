@@ -35,6 +35,13 @@ def test_postgres_schema_sql_uses_requested_schema() -> None:
     )
     assert any('"analytics"."enhanced_predictions"' in statement for statement in statements)
     assert any('"analytics"."scoreline_analysis"' in statement for statement in statements)
+    assert any('"analytics"."score_odds_snapshots"' in statement for statement in statements)
+    assert any('"analytics"."score_odds_features"' in statement for statement in statements)
+    assert any(
+        '"analytics"."score_odds_collection_status"' in statement
+        for statement in statements
+    )
+    assert any('"analytics"."scoreline_value_bets"' in statement for statement in statements)
     assert any('"analytics"."odds_raw_api_responses"' in statement for statement in statements)
     assert any('"analytics"."market_odds_snapshots"' in statement for statement in statements)
     assert any('"analytics"."match_odds_features"' in statement for statement in statements)
@@ -61,6 +68,21 @@ def test_postgres_schema_sql_uses_requested_schema() -> None:
     )
     assert "team_name_zh TEXT NOT NULL" in lineup_statement
     assert "lineup_status TEXT NOT NULL" in lineup_statement
+    score_odds_statement = next(
+        statement for statement in statements if '"analytics"."score_odds_features"' in statement
+    )
+    assert "best_decimal_odds DOUBLE PRECISION NOT NULL" in score_odds_statement
+    assert "source_match_ids TEXT" in score_odds_statement
+    score_odds_snapshot_statement = next(
+        statement for statement in statements if '"analytics"."score_odds_snapshots"' in statement
+    )
+    assert "source_match_id TEXT" in score_odds_snapshot_statement
+    value_bets_statement = next(
+        statement for statement in statements if '"analytics"."scoreline_value_bets"' in statement
+    )
+    assert "market_edge DOUBLE PRECISION" in value_bets_statement
+    assert "has_score_odds BOOLEAN NOT NULL" in value_bets_statement
+    assert "source_match_ids TEXT" in value_bets_statement
 
 
 def test_qualified_table_quotes_schema_and_table() -> None:

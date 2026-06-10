@@ -219,6 +219,38 @@ feature store used by the enhanced win-probability model, then applies a Dixon-C
 correlation correction. It should later be improved with xG, shot quality, player availability,
 odds, and weather calibration.
 
+## Correct Score Odds
+
+Collect publicly available correct-score odds and compare them against the model probabilities:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.score_odds_pipeline --limit 72
+python -m src.value_bets_report --limit 4
+```
+
+Outputs:
+
+- `data/processed/score_odds_snapshots.parquet`
+- `data/features/score_odds_features.parquet`
+- `data/processed/score_odds_collection_status.parquet`
+- `reports/scoreline_value_bets.csv`
+
+The collector discovers China Sports Lottery football matches from the public match-list API
+behind `https://www.lottery.gov.cn/jc/index.html`, keeps only rows where the league is `世界杯`,
+then collects fixed-bonus correct-score odds from each Sporttery detail page `mid`.
+
+For incremental scans, keep existing Sporttery `mid` rows and only fill newly discovered matches:
+
+```powershell
+python -m src.score_odds_pipeline --limit 72 --skip-existing-sporttery
+```
+
+Rows keep `source_name`, `source_url`, and `source_match_id`, so Postgres reports can distinguish
+`中国体育彩票` from international public odds and can use the Sporttery `mid` to detect already
+collected matches. If the Sporttery home/away order differs from the local fixture order, exact
+score labels are reversed before storage.
+
 ## Postgres Sync
 
 With the Docker database running, sync processed data into Postgres:
