@@ -77,6 +77,7 @@ python -m src.feature_store
 python -m src.enhanced_model
 python -m src.scoreline_model
 python -m src.tournament_simulator
+python -m src.world_cup_backtest --years 2018 2022
 python -m src.postgres_sync
 python -m src.postgres_queries top-rated --limit 10
 python -m src.postgres_queries match-features --team Argentina
@@ -160,6 +161,24 @@ The first simulator version uses enhanced model probabilities for group-stage ma
 neutral-field Elo probabilities for knockout advancement. It implements 12 groups, best eight
 third-place teams, and a deterministic Round-of-32 third-place slot assignment. The third-place
 slot assignment should be replaced with the full official allocation table once encoded.
+
+## World Cup Backtest
+
+Run independent tournament backtests for completed World Cups:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.world_cup_backtest --years 2018 2022
+```
+
+Outputs:
+
+- `reports/world_cup_backtest_metrics.csv`
+- `reports/world_cup_backtest_predictions.csv`
+
+The backtest trains only on matches before each World Cup start date, filters the validation
+set to `FIFA World Cup` finals matches, and reports group-stage and knockout-stage metrics
+separately using 90-minute scorelines.
 
 ## Scoreline Model
 
