@@ -11,6 +11,7 @@ def test_view_sql_contains_expected_view_names() -> None:
         "match_odds_feature_summary",
         "scoreline_prediction_summary",
         "odds_raw_api_response_inventory",
+        "predicted_lineup_summary",
         "team_latest_snapshot",
         "match_outcome_summary",
         "world_cup_2026_known_fixtures",
@@ -31,3 +32,4 @@ def test_view_sql_targets_selected_schema() -> None:
         '"analytics"."odds_raw_api_responses"'
         in statements["odds_raw_api_response_inventory"]
     )
+    assert '"analytics"."predicted_lineups"' in statements["predicted_lineup_summary"]

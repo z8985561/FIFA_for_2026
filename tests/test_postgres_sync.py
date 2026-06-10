@@ -46,6 +46,7 @@ def test_postgres_schema_sql_uses_requested_schema() -> None:
         '"analytics"."historical_match_odds_features"' in statement
         for statement in statements
     )
+    assert any('"analytics"."predicted_lineups"' in statement for statement in statements)
     enhanced_prediction_statement = next(
         statement for statement in statements if '"analytics"."enhanced_predictions"' in statement
     )
@@ -55,6 +56,11 @@ def test_postgres_schema_sql_uses_requested_schema() -> None:
         statement for statement in statements if '"analytics"."odds_raw_api_responses"' in statement
     )
     assert "payload_json JSONB NOT NULL" in raw_odds_statement
+    lineup_statement = next(
+        statement for statement in statements if '"analytics"."predicted_lineups"' in statement
+    )
+    assert "team_name_zh TEXT NOT NULL" in lineup_statement
+    assert "lineup_status TEXT NOT NULL" in lineup_statement
 
 
 def test_qualified_table_quotes_schema_and_table() -> None:

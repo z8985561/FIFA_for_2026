@@ -44,6 +44,7 @@ def view_sql(schema: str) -> dict[str, str]:
     odds_raw_api_responses = qualified_table(schema, "odds_raw_api_responses")
     match_odds_features = qualified_table(schema, "match_odds_features")
     historical_match_odds_features = qualified_table(schema, "historical_match_odds_features")
+    predicted_lineups = qualified_table(schema, "predicted_lineups")
     rankings = qualified_table(schema, "fifa_rankings_2026")
     squads = qualified_table(schema, "squads_2026")
     team_goal_form = qualified_table(schema, "team_goal_form_features")
@@ -244,6 +245,24 @@ def view_sql(schema: str) -> dict[str, str]:
                 ROUND(favorite_probability::numeric, 4) AS favorite_probability,
                 favorite_outcome
             FROM {historical_match_odds_features}
+        """,
+        "predicted_lineup_summary": f"""
+            CREATE OR REPLACE VIEW {qs}.predicted_lineup_summary AS
+            SELECT
+                match_no,
+                match_date,
+                group_name,
+                home_team_zh || ' vs ' || away_team_zh AS matchup_zh,
+                team_name_zh,
+                lineup_status,
+                formation,
+                lineup_order,
+                position_group,
+                player_name,
+                source_name,
+                source_url
+            FROM {predicted_lineups}
+            ORDER BY match_no, team_name_zh, lineup_order
         """,
         "world_cup_team_profiles": f"""
             CREATE OR REPLACE VIEW {qs}.world_cup_team_profiles AS

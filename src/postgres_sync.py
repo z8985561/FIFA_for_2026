@@ -15,6 +15,7 @@ from .enhanced_features import enhanced_feature_columns
 from .enhanced_model import prepare_enhanced_outputs
 from .feature_store import prepare_match_feature_store
 from .goal_form_features import prepare_goal_form_features
+from .lineups_pipeline import prepare_predicted_lineups
 from .project_paths import (
     BASELINE_PREDICTIONS_PATH,
     DATABASE_PATH,
@@ -28,6 +29,7 @@ from .project_paths import (
     MATCH_FEATURE_STORE_2026_PATH,
     MATCH_ODDS_FEATURES_PATH,
     MATCHES_PATH,
+    PREDICTED_LINEUPS_PATH,
     RATINGS_PATH,
     RAW_ODDS_DIR,
     SCORELINE_ANALYSIS_PATH,
@@ -202,6 +204,25 @@ MATCH_ODDS_FEATURE_COLUMNS = [
     "favorite_outcome",
 ]
 
+PREDICTED_LINEUP_COLUMNS = [
+    "match_no",
+    "match_date",
+    "group_name",
+    "home_team",
+    "away_team",
+    "home_team_zh",
+    "away_team_zh",
+    "team_name",
+    "team_name_zh",
+    "lineup_status",
+    "formation",
+    "lineup_order",
+    "position_group",
+    "player_name",
+    "source_name",
+    "source_url",
+]
+
 
 POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
     "matches": [
@@ -354,6 +375,7 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
     "match_odds_features": MATCH_ODDS_FEATURE_COLUMNS,
     "historical_market_odds_snapshots": MARKET_ODDS_SNAPSHOT_COLUMNS,
     "historical_match_odds_features": MATCH_ODDS_FEATURE_COLUMNS,
+    "predicted_lineups": PREDICTED_LINEUP_COLUMNS,
     "enhanced_predictions": ENHANCED_PREDICTION_COLUMNS,
     "scoreline_analysis": SCORELINE_ANALYSIS_COLUMNS,
 }
@@ -420,6 +442,7 @@ def ensure_processed_data() -> None:
         MATCH_ODDS_FEATURES_PATH,
         HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH,
         HISTORICAL_MATCH_ODDS_FEATURES_PATH,
+        PREDICTED_LINEUPS_PATH,
     ]
     if any(not path.exists() for path in required_paths):
         prepare_research_data()
@@ -428,6 +451,7 @@ def ensure_processed_data() -> None:
         prepare_match_feature_store()
         prepare_enhanced_outputs()
         prepare_scoreline_analysis()
+        prepare_predicted_lineups()
 
 
 def quote_identifier(identifier: str) -> str:
@@ -461,6 +485,7 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         schema,
         "historical_match_odds_features",
     )
+    predicted_lineups_table = qualified_table(schema, "predicted_lineups")
     enhanced_predictions_table = qualified_table(schema, "enhanced_predictions")
     scoreline_analysis_table = qualified_table(schema, "scoreline_analysis")
     quoted_schema = quote_identifier(schema)
@@ -771,6 +796,27 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {predicted_lineups_table} (
+            match_no BIGINT NOT NULL,
+            match_date DATE NOT NULL,
+            group_name TEXT NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            home_team_zh TEXT NOT NULL,
+            away_team_zh TEXT NOT NULL,
+            team_name TEXT NOT NULL,
+            team_name_zh TEXT NOT NULL,
+            lineup_status TEXT NOT NULL,
+            formation TEXT NOT NULL,
+            lineup_order INTEGER NOT NULL,
+            position_group TEXT NOT NULL,
+            player_name TEXT NOT NULL,
+            source_name TEXT NOT NULL,
+            source_url TEXT NOT NULL,
+            PRIMARY KEY (match_no, team_name, lineup_status, lineup_order)
+        )
+        """,
+        f"""
         CREATE TABLE IF NOT EXISTS {enhanced_predictions_table} (
             match_no BIGINT PRIMARY KEY,
             stage TEXT NOT NULL,
@@ -909,6 +955,14 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         ON {historical_match_odds_features_table} (home_team, away_team)
         """,
         f"""
+        CREATE INDEX IF NOT EXISTS idx_predicted_lineups_match
+        ON {predicted_lineups_table} (match_no)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_predicted_lineups_team
+        ON {predicted_lineups_table} (team_name)
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_enhanced_predictions_group
         ON {enhanced_predictions_table} (group_name)
         """,
@@ -1035,6 +1089,7 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         "historical_match_odds_features": read_optional_parquet(
             HISTORICAL_MATCH_ODDS_FEATURES_PATH
         ),
+        "predicted_lineups": read_optional_parquet(PREDICTED_LINEUPS_PATH),
         "enhanced_predictions": read_enhanced_predictions_frame(),
         "scoreline_analysis": read_optional_csv(SCORELINE_ANALYSIS_PATH),
     }

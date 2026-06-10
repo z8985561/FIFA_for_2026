@@ -75,6 +75,7 @@ python -m src.world_cup_identity
 python -m src.goal_form_features
 python -m src.feature_store
 python -m src.odds_pipeline
+python -m src.lineups_pipeline
 python -m src.enhanced_model
 python -m src.scoreline_model
 python -m src.tournament_simulator
@@ -256,6 +257,25 @@ python -m src.feature_store
 Output:
 
 - `data/features/match_feature_store_2026.parquet`
+
+## Predicted Lineups
+
+Build the first predicted-lineup layer for the opening known group-stage matches:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.lineups_pipeline
+python -m src.postgres_sync
+python -m src.postgres_views
+```
+
+Output:
+
+- `data/processed/predicted_lineups.parquet`
+
+The current lineup layer is explicitly marked as `lineup_status = predicted`; official
+confirmed lineups should be added closer to kickoff when they are released. The Postgres view
+`research.predicted_lineup_summary` exposes Chinese team names and source URLs for quick review.
 
 ## Odds Pipeline
 

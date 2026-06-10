@@ -23,6 +23,7 @@ FIFA_RANKINGS_PATH = PROCESSED_DATA_DIR / "fifa_rankings_2026.parquet"
 SQUADS_2026_PATH = PROCESSED_DATA_DIR / "squads_2026.parquet"
 WORLD_CUP_TEAMS_2026_PATH = PROCESSED_DATA_DIR / "world_cup_teams_2026.parquet"
 TEAM_GOAL_FORM_FEATURES_PATH = PROCESSED_DATA_DIR / "team_goal_form_features.parquet"
+PREDICTED_LINEUPS_PATH = PROCESSED_DATA_DIR / "predicted_lineups.parquet"
 MARKET_ODDS_SNAPSHOTS_PATH = PROCESSED_DATA_DIR / "market_odds_snapshots.parquet"
 HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH = (
     PROCESSED_DATA_DIR / "historical_market_odds_snapshots.parquet"
