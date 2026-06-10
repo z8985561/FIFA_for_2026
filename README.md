@@ -252,6 +252,21 @@ For live market monitoring, append every run into the historical score-odds snap
 python -m src.score_odds_pipeline --limit 72 --append-history
 ```
 
+Collect additional China Sports Lottery fixed-bonus markets from the same Sporttery `mid` pages:
+
+```powershell
+python -m src.sporttery_market_odds_pipeline --limit 72 --append-history
+```
+
+Outputs:
+
+- `data/processed/sporttery_market_odds_snapshots.parquet`
+- `data/processed/sporttery_market_odds_history.parquet`
+
+The fixed-bonus market collector currently flattens `胜平负`, `让球胜平负`, `总进球`,
+and `半全场`. If the Sporttery home/away order differs from the local fixture order, it
+reverses win/loss outcomes and flips the handicap goal line before storage.
+
 Rows keep `source_name`, `source_url`, and `source_match_id`, so Postgres reports can distinguish
 `中国体育彩票` from international public odds and can use the Sporttery `mid` to detect already
 collected matches. If the Sporttery home/away order differs from the local fixture order, exact

@@ -42,6 +42,14 @@ def test_postgres_schema_sql_uses_requested_schema() -> None:
         '"analytics"."score_odds_collection_status"' in statement
         for statement in statements
     )
+    assert any(
+        '"analytics"."sporttery_market_odds_snapshots"' in statement
+        for statement in statements
+    )
+    assert any(
+        '"analytics"."sporttery_market_odds_history"' in statement
+        for statement in statements
+    )
     assert any('"analytics"."scoreline_value_bets"' in statement for statement in statements)
     assert any('"analytics"."odds_raw_api_responses"' in statement for statement in statements)
     assert any('"analytics"."market_odds_snapshots"' in statement for statement in statements)
@@ -82,6 +90,13 @@ def test_postgres_schema_sql_uses_requested_schema() -> None:
         statement for statement in statements if '"analytics"."score_odds_history"' in statement
     )
     assert "source_match_id TEXT" in score_odds_history_statement
+    sporttery_market_statement = next(
+        statement
+        for statement in statements
+        if '"analytics"."sporttery_market_odds_snapshots"' in statement
+    )
+    assert "market_code TEXT NOT NULL" in sporttery_market_statement
+    assert "source_home_away_reversed BOOLEAN NOT NULL" in sporttery_market_statement
     value_bets_statement = next(
         statement for statement in statements if '"analytics"."scoreline_value_bets"' in statement
     )
