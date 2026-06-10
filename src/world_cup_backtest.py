@@ -151,6 +151,7 @@ def build_backtest_predictions_for_year(matches: pd.DataFrame, year: int) -> pd.
         ]
         top_scorelines = matrix.sort_values("probability", ascending=False).head(3)
         top_scoreline = top_scorelines.iloc[0]
+        top3_scoreline_set = set(top_scorelines["scoreline"])
         actual_index = TARGET_ORDER.index(row.outcome)
         rows.append(
             {
@@ -179,10 +180,12 @@ def build_backtest_predictions_for_year(matches: pd.DataFrame, year: int) -> pd.
                 ),
                 "top_scoreline": top_scoreline["scoreline"],
                 "top_scoreline_probability": float(top_scoreline["probability"]),
-                "actual_scoreline_in_top_1": bool(actual_scoreline == top_scoreline["scoreline"]),
-                "actual_scoreline_in_top_3": bool(
-                    actual_scoreline in set(top_scorelines["scoreline"])
+                "top3_scorelines": "|".join(top_scorelines["scoreline"].astype(str)),
+                "top3_scoreline_probabilities": "|".join(
+                    f"{probability:.8f}" for probability in top_scorelines["probability"]
                 ),
+                "actual_scoreline_in_top_1": bool(actual_scoreline == top_scoreline["scoreline"]),
+                "actual_scoreline_in_top_3": bool(actual_scoreline in top3_scoreline_set),
                 "actual_over_2_5": int(row.home_score + row.away_score >= 3),
                 "actual_btts": int(row.home_score > 0 and row.away_score > 0),
             }

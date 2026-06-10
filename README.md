@@ -78,6 +78,7 @@ python -m src.enhanced_model
 python -m src.scoreline_model
 python -m src.tournament_simulator
 python -m src.world_cup_backtest --years 2018 2022
+python -m src.analysis_diagnostics
 python -m src.postgres_sync
 python -m src.postgres_queries top-rated --limit 10
 python -m src.postgres_queries match-features --team Argentina
@@ -179,6 +180,23 @@ Outputs:
 The backtest trains only on matches before each World Cup start date, filters the validation
 set to `FIFA World Cup` finals matches, and reports group-stage and knockout-stage metrics
 separately using 90-minute scorelines.
+
+Build diagnostic slices on top of the backtest predictions:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.analysis_diagnostics
+```
+
+Outputs:
+
+- `reports/world_cup_backtest_calibration.csv`
+- `reports/world_cup_backtest_confederation_diagnostics.csv`
+- `reports/world_cup_backtest_low_score_diagnostics.csv`
+- `reports/world_cup_backtest_upset_diagnostics.csv`
+
+These reports break down top-class calibration, confederation matchup performance,
+high-confidence misses, and knockout low-score draw coverage.
 
 ## Scoreline Model
 

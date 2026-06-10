@@ -34,6 +34,12 @@ SCORELINE_METRICS_PATH = REPORTS_DIR / "scoreline_model_metrics.json"
 SCORELINE_ANALYSIS_PATH = REPORTS_DIR / "world_cup_2026_scoreline_analysis.csv"
 WORLD_CUP_BACKTEST_METRICS_PATH = REPORTS_DIR / "world_cup_backtest_metrics.csv"
 WORLD_CUP_BACKTEST_PREDICTIONS_PATH = REPORTS_DIR / "world_cup_backtest_predictions.csv"
+WORLD_CUP_BACKTEST_CALIBRATION_PATH = REPORTS_DIR / "world_cup_backtest_calibration.csv"
+WORLD_CUP_BACKTEST_CONFEDERATION_PATH = (
+    REPORTS_DIR / "world_cup_backtest_confederation_diagnostics.csv"
+)
+WORLD_CUP_BACKTEST_LOW_SCORE_PATH = REPORTS_DIR / "world_cup_backtest_low_score_diagnostics.csv"
+WORLD_CUP_BACKTEST_UPSET_PATH = REPORTS_DIR / "world_cup_backtest_upset_diagnostics.csv"
 
 
 def ensure_project_directories() -> None:
