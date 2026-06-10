@@ -14,6 +14,7 @@ from .project_paths import (
     FIXTURES_PATH,
     SCORE_ODDS_COLLECTION_STATUS_PATH,
     SCORE_ODDS_FEATURES_PATH,
+    SCORE_ODDS_HISTORY_PATH,
     SCORE_ODDS_SNAPSHOTS_PATH,
     ensure_project_directories,
 )
@@ -179,9 +180,11 @@ class ScoreOddsPipelineOutputs:
     score_odds_snapshots_path: str
     score_odds_features_path: str
     collection_status_path: str
+    score_odds_history_path: str | None
     snapshot_rows: int
     feature_rows: int
     status_rows: int
+    history_rows: int | None
     collected_matches: int
 
 
@@ -765,15 +768,53 @@ def merge_score_odds_status(
     return combined.sort_values(["match_no", "source_name"]).reset_index(drop=True)
 
 
+def append_score_odds_history(
+    snapshots: pd.DataFrame,
+    *,
+    history_path=SCORE_ODDS_HISTORY_PATH,
+) -> pd.DataFrame:
+    snapshots = normalize_score_odds_snapshots(snapshots)
+    previous_history = (
+        normalize_score_odds_snapshots(pd.read_parquet(history_path))
+        if history_path.exists()
+        else pd.DataFrame()
+    )
+    if snapshots.empty:
+        return previous_history
+    if previous_history.empty:
+        history = snapshots
+    else:
+        history = pd.concat([previous_history, snapshots], ignore_index=True)
+
+    history = history.drop_duplicates(
+        subset=[
+            "match_no",
+            "scoreline",
+            "bookmaker_key",
+            "source_match_id",
+            "source_url",
+            "fetched_at",
+        ],
+        keep="last",
+    )
+    history = history.sort_values(
+        ["match_no", "scoreline", "bookmaker_key", "fetched_at"]
+    ).reset_index(drop=True)
+    history.to_parquet(history_path, index=False)
+    return history
+
+
 def prepare_score_odds_features(
     *,
     fixtures_path=FIXTURES_PATH,
     match_limit: int = DEFAULT_MATCH_LIMIT,
     discover_sporttery: bool = True,
     skip_existing_sporttery: bool = False,
+    append_history: bool = False,
     score_odds_snapshots_path=SCORE_ODDS_SNAPSHOTS_PATH,
     score_odds_features_path=SCORE_ODDS_FEATURES_PATH,
     collection_status_path=SCORE_ODDS_COLLECTION_STATUS_PATH,
+    score_odds_history_path=SCORE_ODDS_HISTORY_PATH,
 ) -> ScoreOddsPipelineOutputs:
     ensure_project_directories()
     fixtures = pd.read_parquet(fixtures_path)
@@ -816,14 +857,21 @@ def prepare_score_odds_features(
     snapshots.to_parquet(score_odds_snapshots_path, index=False)
     features.to_parquet(score_odds_features_path, index=False)
     status.to_parquet(collection_status_path, index=False)
+    history = (
+        append_score_odds_history(snapshots, history_path=score_odds_history_path)
+        if append_history
+        else None
+    )
 
     return ScoreOddsPipelineOutputs(
         score_odds_snapshots_path=str(score_odds_snapshots_path),
         score_odds_features_path=str(score_odds_features_path),
         collection_status_path=str(collection_status_path),
+        score_odds_history_path=str(score_odds_history_path) if append_history else None,
         snapshot_rows=len(snapshots),
         feature_rows=len(features),
         status_rows=len(status),
+        history_rows=len(history) if history is not None else None,
         collected_matches=(
             int(status.loc[status["status"].eq("collected"), "match_no"].nunique())
             if not status.empty
@@ -845,6 +893,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable Sporttery match-list discovery and use the built-in mid mapping only.",
     )
+    parser.add_argument(
+        "--append-history",
+        action="store_true",
+        help="Append this run's score-odds snapshots to the historical snapshot file.",
+    )
     return parser
 
 
@@ -854,6 +907,7 @@ def main() -> None:
         match_limit=args.limit,
         discover_sporttery=not args.no_discover_sporttery,
         skip_existing_sporttery=args.skip_existing_sporttery,
+        append_history=args.append_history,
     )
     for key, value in asdict(outputs).items():
         print(f"{key}: {value}")

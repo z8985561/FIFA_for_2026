@@ -36,6 +36,7 @@ def test_postgres_schema_sql_uses_requested_schema() -> None:
     assert any('"analytics"."enhanced_predictions"' in statement for statement in statements)
     assert any('"analytics"."scoreline_analysis"' in statement for statement in statements)
     assert any('"analytics"."score_odds_snapshots"' in statement for statement in statements)
+    assert any('"analytics"."score_odds_history"' in statement for statement in statements)
     assert any('"analytics"."score_odds_features"' in statement for statement in statements)
     assert any(
         '"analytics"."score_odds_collection_status"' in statement
@@ -77,6 +78,10 @@ def test_postgres_schema_sql_uses_requested_schema() -> None:
         statement for statement in statements if '"analytics"."score_odds_snapshots"' in statement
     )
     assert "source_match_id TEXT" in score_odds_snapshot_statement
+    score_odds_history_statement = next(
+        statement for statement in statements if '"analytics"."score_odds_history"' in statement
+    )
+    assert "source_match_id TEXT" in score_odds_history_statement
     value_bets_statement = next(
         statement for statement in statements if '"analytics"."scoreline_value_bets"' in statement
     )

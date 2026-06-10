@@ -34,6 +34,7 @@ from .project_paths import (
     RAW_ODDS_DIR,
     SCORE_ODDS_COLLECTION_STATUS_PATH,
     SCORE_ODDS_FEATURES_PATH,
+    SCORE_ODDS_HISTORY_PATH,
     SCORE_ODDS_SNAPSHOTS_PATH,
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_VALUE_BETS_PATH,
@@ -484,6 +485,7 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
     "historical_match_odds_features": MATCH_ODDS_FEATURE_COLUMNS,
     "predicted_lineups": PREDICTED_LINEUP_COLUMNS,
     "score_odds_snapshots": SCORE_ODDS_SNAPSHOT_COLUMNS,
+    "score_odds_history": SCORE_ODDS_SNAPSHOT_COLUMNS,
     "score_odds_features": SCORE_ODDS_FEATURE_COLUMNS,
     "score_odds_collection_status": SCORE_ODDS_COLLECTION_STATUS_COLUMNS,
     "enhanced_predictions": ENHANCED_PREDICTION_COLUMNS,
@@ -604,6 +606,7 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
     )
     predicted_lineups_table = qualified_table(schema, "predicted_lineups")
     score_odds_snapshots_table = qualified_table(schema, "score_odds_snapshots")
+    score_odds_history_table = qualified_table(schema, "score_odds_history")
     score_odds_features_table = qualified_table(schema, "score_odds_features")
     score_odds_collection_status_table = qualified_table(
         schema,
@@ -963,6 +966,28 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {score_odds_history_table} (
+            match_no BIGINT NOT NULL,
+            stage TEXT NOT NULL,
+            group_name TEXT,
+            date_et DATE NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            home_team_zh TEXT,
+            away_team_zh TEXT,
+            scoreline TEXT NOT NULL,
+            bookmaker_key TEXT NOT NULL,
+            bookmaker_title TEXT NOT NULL,
+            american_odds TEXT NOT NULL,
+            decimal_odds DOUBLE PRECISION NOT NULL,
+            raw_implied_probability DOUBLE PRECISION NOT NULL,
+            source_name TEXT NOT NULL,
+            source_url TEXT,
+            source_match_id TEXT,
+            fetched_at TIMESTAMPTZ NOT NULL
+        )
+        """,
+        f"""
         CREATE TABLE IF NOT EXISTS {score_odds_features_table} (
             match_no BIGINT NOT NULL,
             stage TEXT NOT NULL,
@@ -1203,6 +1228,10 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         ON {score_odds_snapshots_table} (source_name, source_match_id)
         """,
         f"""
+        CREATE INDEX IF NOT EXISTS idx_score_odds_history_source_match
+        ON {score_odds_history_table} (source_name, source_match_id, fetched_at)
+        """,
+        f"""
         CREATE INDEX IF NOT EXISTS idx_score_odds_features_match
         ON {score_odds_features_table} (match_no)
         """,
@@ -1354,6 +1383,7 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         ),
         "predicted_lineups": read_optional_parquet(PREDICTED_LINEUPS_PATH),
         "score_odds_snapshots": read_optional_parquet(SCORE_ODDS_SNAPSHOTS_PATH),
+        "score_odds_history": read_optional_parquet(SCORE_ODDS_HISTORY_PATH),
         "score_odds_features": read_optional_parquet(SCORE_ODDS_FEATURES_PATH),
         "score_odds_collection_status": read_optional_parquet(
             SCORE_ODDS_COLLECTION_STATUS_PATH

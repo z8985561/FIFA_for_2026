@@ -29,6 +29,7 @@ HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH = (
     PROCESSED_DATA_DIR / "historical_market_odds_snapshots.parquet"
 )
 SCORE_ODDS_SNAPSHOTS_PATH = PROCESSED_DATA_DIR / "score_odds_snapshots.parquet"
+SCORE_ODDS_HISTORY_PATH = PROCESSED_DATA_DIR / "score_odds_history.parquet"
 SCORE_ODDS_COLLECTION_STATUS_PATH = PROCESSED_DATA_DIR / "score_odds_collection_status.parquet"
 MATCH_FEATURE_STORE_2026_PATH = FEATURE_DATA_DIR / "match_feature_store_2026.parquet"
 HISTORICAL_MATCH_FEATURE_STORE_PATH = FEATURE_DATA_DIR / "historical_match_feature_store.parquet"

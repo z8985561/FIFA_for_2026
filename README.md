@@ -246,6 +246,12 @@ For incremental scans, keep existing Sporttery `mid` rows and only fill newly di
 python -m src.score_odds_pipeline --limit 72 --skip-existing-sporttery
 ```
 
+For live market monitoring, append every run into the historical score-odds snapshot file:
+
+```powershell
+python -m src.score_odds_pipeline --limit 72 --append-history
+```
+
 Rows keep `source_name`, `source_url`, and `source_match_id`, so Postgres reports can distinguish
 `中国体育彩票` from international public odds and can use the Sporttery `mid` to detect already
 collected matches. If the Sporttery home/away order differs from the local fixture order, exact

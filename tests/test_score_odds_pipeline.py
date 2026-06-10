@@ -4,6 +4,7 @@ import pandas as pd
 
 from src.score_odds_pipeline import (
     american_to_decimal,
+    append_score_odds_history,
     build_score_odds_features,
     build_score_odds_snapshots,
     build_sporttery_match_id_map,
@@ -88,6 +89,38 @@ def test_build_score_odds_features_normalizes_listed_score_probabilities() -> No
     assert features.loc[0, "bookmaker_count"] == 1
     assert features.loc[0, "source_names"] == "中国体育彩票"
     assert features.loc[0, "source_match_ids"] == "2040162"
+
+
+def test_append_score_odds_history_deduplicates_identical_snapshots(tmp_path) -> None:
+    history_path = tmp_path / "score_odds_history.parquet"
+    snapshots = pd.DataFrame(
+        {
+            "match_no": [1],
+            "stage": ["Group Stage"],
+            "group_name": ["Group A"],
+            "date_et": [pd.Timestamp("2026-06-11").date()],
+            "home_team": ["Mexico"],
+            "away_team": ["South Africa"],
+            "home_team_zh": ["墨西哥"],
+            "away_team_zh": ["南非"],
+            "scoreline": ["2-0"],
+            "bookmaker_key": ["sporttery"],
+            "bookmaker_title": ["中国体育彩票"],
+            "american_odds": ["5.30"],
+            "decimal_odds": [5.3],
+            "raw_implied_probability": [1 / 5.3],
+            "source_name": ["中国体育彩票"],
+            "source_url": ["https://www.sporttery.cn/jc/zqdz/index.html?showType=3&mid=2040162"],
+            "source_match_id": ["2040162"],
+            "fetched_at": [pd.Timestamp("2026-06-11T01:00:00Z")],
+        }
+    )
+
+    append_score_odds_history(snapshots, history_path=history_path)
+    history = append_score_odds_history(snapshots, history_path=history_path)
+
+    assert len(history) == 1
+    assert history.loc[0, "source_match_id"] == "2040162"
 
 
 def test_build_sporttery_match_id_map_filters_world_cup_rows() -> None:
