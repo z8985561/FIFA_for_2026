@@ -9,6 +9,7 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, log_loss
 
 from .baseline_model import TARGET_ORDER
+from .confederation_features import confederation_pair, team_confederation
 from .project_paths import (
     WORLD_CUP_BACKTEST_CALIBRATION_PATH,
     WORLD_CUP_BACKTEST_CONFEDERATION_PATH,
@@ -18,7 +19,6 @@ from .project_paths import (
     ensure_project_directories,
 )
 from .world_cup_backtest import prepare_world_cup_backtest
-from .world_cup_identity import CONFEDERATION_BY_TEAM
 
 PROBABILITY_COLUMNS = [
     "away_win_probability",
@@ -28,21 +28,6 @@ PROBABILITY_COLUMNS = [
 PROBABILITY_BY_OUTCOME = dict(zip(TARGET_ORDER, PROBABILITY_COLUMNS, strict=True))
 CALIBRATION_BINS = np.linspace(0.0, 1.0, 6)
 LOW_SCORE_DRAWS = ("0-0", "1-1")
-
-HISTORICAL_CONFEDERATION_BY_TEAM = {
-    **CONFEDERATION_BY_TEAM,
-    "Cameroon": "CAF",
-    "Costa Rica": "CONCACAF",
-    "Denmark": "UEFA",
-    "Iceland": "UEFA",
-    "Nigeria": "CAF",
-    "Peru": "CONMEBOL",
-    "Poland": "UEFA",
-    "Russia": "UEFA",
-    "Serbia": "UEFA",
-    "Wales": "UEFA",
-}
-
 
 @dataclass(frozen=True)
 class DiagnosticOutputs:
@@ -85,13 +70,11 @@ def add_prediction_diagnostics(predictions: pd.DataFrame) -> pd.DataFrame:
 
 def add_confederation_diagnostics(predictions: pd.DataFrame) -> pd.DataFrame:
     working = add_prediction_diagnostics(predictions)
-    working["home_confederation"] = working["home_team"].map(HISTORICAL_CONFEDERATION_BY_TEAM)
-    working["away_confederation"] = working["away_team"].map(HISTORICAL_CONFEDERATION_BY_TEAM)
-    working["home_confederation"] = working["home_confederation"].fillna("UNKNOWN")
-    working["away_confederation"] = working["away_confederation"].fillna("UNKNOWN")
+    working["home_confederation"] = working["home_team"].map(team_confederation)
+    working["away_confederation"] = working["away_team"].map(team_confederation)
     working["same_confederation"] = working["home_confederation"].eq(working["away_confederation"])
     working["confederation_pair"] = [
-        "_vs_".join(sorted((home, away)))
+        confederation_pair(home, away)
         for home, away in zip(
             working["home_confederation"],
             working["away_confederation"],

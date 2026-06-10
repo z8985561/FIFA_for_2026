@@ -114,6 +114,10 @@ def view_sql(schema: str) -> dict[str, str]:
                 date_et,
                 home_team,
                 away_team,
+                home_confederation,
+                away_confederation,
+                same_confederation,
+                confederation_pair,
                 ROUND(home_latest_elo::numeric, 2) AS home_latest_elo,
                 ROUND(away_latest_elo::numeric, 2) AS away_latest_elo,
                 ROUND(elo_diff::numeric, 2) AS elo_diff,
@@ -126,10 +130,32 @@ def view_sql(schema: str) -> dict[str, str]:
                 ROUND(goal_diff_per_match_diff_last_5::numeric, 4)
                     AS goal_diff_per_match_diff_last_5,
                 ROUND(win_rate_diff_last_10::numeric, 4) AS win_rate_diff_last_10,
+                has_market_odds,
+                ROUND(consensus_home_win_probability::numeric, 4)
+                    AS consensus_home_win_probability,
+                ROUND(consensus_draw_probability::numeric, 4)
+                    AS consensus_draw_probability,
+                ROUND(consensus_away_win_probability::numeric, 4)
+                    AS consensus_away_win_probability,
+                ROUND(avg_market_overround::numeric, 4) AS avg_market_overround,
+                bookmaker_count,
+                ROUND(market_entropy::numeric, 4) AS market_entropy,
+                ROUND(favorite_probability::numeric, 4) AS favorite_probability,
+                favorite_outcome,
                 ROUND(home_win_probability::numeric, 4) AS home_win_probability,
                 ROUND(draw_probability::numeric, 4) AS draw_probability,
                 ROUND(away_win_probability::numeric, 4) AS away_win_probability,
-                predicted_outcome
+                predicted_outcome,
+                ROUND(blended_home_win_probability::numeric, 4)
+                    AS blended_home_win_probability,
+                ROUND(blended_draw_probability::numeric, 4)
+                    AS blended_draw_probability,
+                ROUND(blended_away_win_probability::numeric, 4)
+                    AS blended_away_win_probability,
+                blended_predicted_outcome,
+                ROUND(model_market_home_gap::numeric, 4) AS model_market_home_gap,
+                ROUND(model_market_draw_gap::numeric, 4) AS model_market_draw_gap,
+                ROUND(model_market_away_gap::numeric, 4) AS model_market_away_gap
             FROM {enhanced_predictions}
         """,
         "scoreline_prediction_summary": f"""

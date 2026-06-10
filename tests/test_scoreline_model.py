@@ -1,6 +1,11 @@
 import pandas as pd
 
-from src.scoreline_model import dixon_coles_factor, matrix_summary, scoreline_matrix
+from src.scoreline_model import (
+    dixon_coles_factor,
+    inflate_scoreline_probability,
+    matrix_summary,
+    scoreline_matrix,
+)
 
 
 def test_scoreline_matrix_normalizes_probabilities() -> None:
@@ -31,3 +36,14 @@ def test_dixon_coles_factor_adjusts_low_score_cells() -> None:
     assert dixon_coles_factor(0, 0, 1.4, 0.9, -0.03) > 1.0
     assert dixon_coles_factor(1, 1, 1.4, 0.9, -0.03) > 1.0
     assert dixon_coles_factor(2, 1, 1.4, 0.9, -0.03) == 1.0
+
+
+def test_inflate_scoreline_probability_boosts_target_and_renormalizes() -> None:
+    matrix = scoreline_matrix(1.2, 1.1, max_goals=4)
+    before = matrix.loc[matrix["scoreline"] == "0-0", "probability"].item()
+
+    adjusted = inflate_scoreline_probability(matrix, scoreline="0-0", multiplier=1.25)
+    after = adjusted.loc[adjusted["scoreline"] == "0-0", "probability"].item()
+
+    assert after > before
+    assert round(adjusted["probability"].sum(), 8) == 1.0

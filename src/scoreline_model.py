@@ -240,6 +240,20 @@ def matrix_summary(matrix: pd.DataFrame) -> dict[str, float]:
     }
 
 
+def inflate_scoreline_probability(
+    matrix: pd.DataFrame,
+    *,
+    scoreline: str,
+    multiplier: float,
+) -> pd.DataFrame:
+    if multiplier <= 0:
+        raise ValueError("multiplier must be positive")
+    adjusted = matrix.copy()
+    adjusted.loc[adjusted["scoreline"].eq(scoreline), "probability"] *= multiplier
+    adjusted["probability"] = adjusted["probability"] / adjusted["probability"].sum()
+    return adjusted
+
+
 def build_scoreline_analysis(
     fixture_features: pd.DataFrame,
     home_model: object,

@@ -18,11 +18,19 @@ from .enhanced_features import (
     enhanced_feature_columns,
 )
 from .feature_store import prepare_match_feature_store
+from .market_features import attach_market_features
+from .odds_pipeline import prepare_odds_features
+from .probability_calibration import (
+    DEFAULT_PROBABILITY_FLOOR,
+    DEFAULT_TEMPERATURE,
+    apply_upset_protection,
+)
 from .project_paths import (
     ENHANCED_METRICS_PATH,
     ENHANCED_PREDICTIONS_PATH,
     HISTORICAL_MATCH_FEATURE_STORE_PATH,
     MATCH_FEATURE_STORE_2026_PATH,
+    MATCH_ODDS_FEATURES_PATH,
     MATCHES_PATH,
     RATINGS_PATH,
     ensure_project_directories,
@@ -37,6 +45,8 @@ class EnhancedMetrics:
     log_loss: float
     brier_score: float
     feature_count: int
+    probability_temperature: float
+    probability_floor: float
 
 
 @dataclass(frozen=True)
@@ -54,6 +64,8 @@ def ensure_enhanced_inputs() -> None:
         prepare_research_data()
     if not MATCH_FEATURE_STORE_2026_PATH.exists():
         prepare_match_feature_store()
+    if not MATCH_ODDS_FEATURES_PATH.exists():
+        prepare_odds_features()
 
 
 def multiclass_brier_score(y_true: np.ndarray, probabilities: np.ndarray) -> float:
@@ -85,8 +97,8 @@ def train_enhanced_model(
     )
     model.fit(X_train, y_train)
 
-    probabilities = model.predict_proba(X_test)
-    predictions = model.predict(X_test)
+    probabilities = apply_upset_protection(model.predict_proba(X_test))
+    predictions = probabilities.argmax(axis=1)
     metrics = EnhancedMetrics(
         train_matches=len(train_frame),
         test_matches=len(test_frame),
@@ -94,6 +106,8 @@ def train_enhanced_model(
         log_loss=float(log_loss(y_test, probabilities, labels=list(range(len(TARGET_ORDER))))),
         brier_score=multiclass_brier_score(y_test.to_numpy(), probabilities),
         feature_count=len(columns),
+        probability_temperature=DEFAULT_TEMPERATURE,
+        probability_floor=DEFAULT_PROBABILITY_FLOOR,
     )
     return model, metrics
 
@@ -102,9 +116,11 @@ def generate_enhanced_predictions(
     model: object,
     match_features_2026: pd.DataFrame,
     historical_matches: pd.DataFrame,
+    match_odds_features: pd.DataFrame,
 ) -> pd.DataFrame:
     features = build_2026_enhanced_features(match_features_2026, historical_matches)
-    probabilities = model.predict_proba(features[enhanced_feature_columns()])
+    feature_frame = features[enhanced_feature_columns()]
+    probabilities = apply_upset_protection(model.predict_proba(feature_frame))
     probability_frame = pd.DataFrame(
         probabilities,
         columns=["away_win_probability", "draw_probability", "home_win_probability"],
@@ -120,6 +136,10 @@ def generate_enhanced_predictions(
                     "date_et",
                     "home_team",
                     "away_team",
+                    "home_confederation",
+                    "away_confederation",
+                    "same_confederation",
+                    "confederation_pair",
                     "home_latest_elo",
                     "away_latest_elo",
                     "elo_diff",
@@ -144,6 +164,12 @@ def generate_enhanced_predictions(
         "",
         regex=False,
     )
+    output = attach_market_features(
+        output,
+        match_odds_features,
+        prediction_date_column="date_et",
+        market_date_timezone="America/New_York",
+    )
     return output.sort_values("match_no").reset_index(drop=True)
 
 
@@ -153,10 +179,16 @@ def prepare_enhanced_outputs() -> EnhancedOutputs:
 
     matches = pd.read_parquet(MATCHES_PATH)
     match_features_2026 = pd.read_parquet(MATCH_FEATURE_STORE_2026_PATH)
+    match_odds_features = pd.read_parquet(MATCH_ODDS_FEATURES_PATH)
 
     historical_features = prepare_historical_feature_store(matches)
     model, metrics = train_enhanced_model(historical_features)
-    predictions = generate_enhanced_predictions(model, match_features_2026, matches)
+    predictions = generate_enhanced_predictions(
+        model,
+        match_features_2026,
+        matches,
+        match_odds_features,
+    )
 
     ENHANCED_METRICS_PATH.write_text(
         json.dumps(asdict(metrics), indent=2),

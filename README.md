@@ -74,6 +74,7 @@ python -m src.postgres_views
 python -m src.world_cup_identity
 python -m src.goal_form_features
 python -m src.feature_store
+python -m src.odds_pipeline
 python -m src.enhanced_model
 python -m src.scoreline_model
 python -m src.tournament_simulator
@@ -255,6 +256,37 @@ python -m src.feature_store
 Output:
 
 - `data/features/match_feature_store_2026.parquet`
+
+## Odds Pipeline
+
+Build processed bookmaker snapshots and consensus match-odds features from raw odds API dumps:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.odds_pipeline
+```
+
+Outputs:
+
+- `data/processed/market_odds_snapshots.parquet`
+- `data/features/match_odds_features.parquet`
+
+The first pipeline version ingests `h2h` bookmaker odds from `data/raw/odds/`, preserves
+bookmaker-level snapshots, removes overround from 1X2 prices, and builds consensus implied
+probabilities per match for downstream model features.
+
+Historical odds can be staged separately under `data/raw/odds/historical/` and converted into
+the backtest feature file:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.odds_pipeline --historical --raw-dir data/raw/odds/historical
+python -m src.world_cup_backtest --years 2018 2022
+```
+
+When `data/features/historical_match_odds_features.parquet` exists, the World Cup backtest
+adds bookmaker-only (`market_outcome_*`) and model-market blend (`blended_outcome_*`) metrics.
+If historical odds are absent, the backtest still runs and reports `market_odds_coverage = 0`.
 
 ## Postgres Views
 

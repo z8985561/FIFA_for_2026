@@ -33,6 +33,9 @@ def test_historical_features_use_only_prior_team_form() -> None:
     assert features.loc[1, "home_points_per_match_last_5"] == 3.0
     assert features.loc[1, "home_goal_diff_per_match_last_5"] == 2.0
     assert features.loc[1, "away_points_per_match_last_5"] == 1.0
+    assert features.loc[0, "home_confederation"] == "CONMEBOL"
+    assert features.loc[0, "away_confederation"] == "CAF"
+    assert features.loc[0, "confed_pair_CAF_vs_CONMEBOL"] == 1
 
 
 def test_2026_features_merge_latest_form_and_fixture_rest_days() -> None:
@@ -75,3 +78,6 @@ def test_2026_features_merge_latest_form_and_fixture_rest_days() -> None:
     assert features.loc[1, "home_rest_days"] == 5.0
     assert features.loc[0, "home_points_per_match_last_5"] == 3.0
     assert features.loc[1, "away_matches_last_5"] == 0.0
+    assert features.loc[0, "home_confederation"] == "CONMEBOL"
+    assert features.loc[0, "away_confederation"] == "CAF"
+    assert features.loc[0, "cross_confederation_int"] == 1

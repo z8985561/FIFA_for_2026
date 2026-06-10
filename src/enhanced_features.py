@@ -6,6 +6,8 @@ from typing import Any
 
 import pandas as pd
 
+from .confederation_features import add_confederation_features, confederation_feature_columns
+
 FORM_WINDOWS = (5, 10)
 DEFAULT_REST_DAYS = 30.0
 MAX_REST_DAYS = 365.0
@@ -42,6 +44,7 @@ def enhanced_feature_columns() -> list[str]:
                     f"{metric}_diff_last_{window}",
                 ]
             )
+    columns.extend(confederation_feature_columns())
     return columns
 
 
@@ -174,7 +177,7 @@ def build_historical_enhanced_features(matches: pd.DataFrame) -> pd.DataFrame:
             )
         )
 
-    return add_form_differences(pd.DataFrame(rows))
+    return add_confederation_features(add_form_differences(pd.DataFrame(rows)))
 
 
 def build_latest_team_form_features(matches: pd.DataFrame) -> pd.DataFrame:
@@ -266,4 +269,4 @@ def build_2026_enhanced_features(
                 f"away_{metric}_last_{window}"
             ].fillna(default_value)
 
-    return add_form_differences(features)
+    return add_confederation_features(add_form_differences(features))
