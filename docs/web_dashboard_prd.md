@@ -398,11 +398,13 @@ api/
 
 推荐前端技术栈：
 
-- React
+- Vue 3
 - Vite
 - TypeScript
+- Vue Router
+- Pinia
 - ECharts
-- Ant Design 或 shadcn/ui
+- Element Plus
 
 体验方向：
 
@@ -411,16 +413,67 @@ api/
 - 支持桌面端和基础移动端响应式布局
 - 在比分价值页和模拟器页清晰展示模型免责声明
 
+Vue 约定：
+
+- 全部业务组件使用 Composition API 和 `<script setup lang="ts">`。
+- 路由级页面只负责页面编排，具体图表、表格、模拟器表单拆成独立组件。
+- 跨页面共享状态放入 Pinia，页面内局部派生数据优先使用 `computed`。
+- API 调用封装在 `services/` 或 `composables/` 中，避免直接散落在组件模板里。
+- 图表组件统一封装 ECharts 初始化、resize、销毁和空状态展示。
+- 小组长表格、比分长列表等高密度区域预留虚拟滚动或分页能力。
+- 大型图表、低频页面和重组件优先使用异步组件按需挂载。
+- 只读的大型元数据字典使用 `shallowRef`、冻结对象或模块常量，避免深层响应式代理。
+
+视觉约定：
+
+- 基于 Element Plus 做二次主题定制，不直接使用默认后台管理模板视觉。
+- 使用全局 Design Tokens 管理颜色、圆角、阴影、间距、字体层级和图表语义色。
+- 看板整体采用研究报告风格：充足留白、清晰表格密度、弱化博彩站点视觉暗示。
+- 概率、风险、价值信号不能只依赖红绿颜色，必须同时有文字标签或图标说明。
+
+异常与边界状态：
+
+- 所有接口请求必须提供加载态、错误态和空状态。
+- 体彩赔率缺失时展示 `暂未获取赔率`，仍保留模型概率和公平赔率。
+- 数据快照时间必须展示在赔率、价值信号和模拟器结果附近。
+- 模拟器增删比分选项时对结算请求做防抖，并展示明确的计算中状态。
+- API 返回字段缺失或模型版本不一致时，前端应降级展示而不是页面崩溃。
+
+建议 Pinia Store：
+
+- `useMatchStore`：比赛列表、当前比赛、前四场重点比赛。
+- `useGroupStore`：小组积分、出线概率、第三名横向排名。
+- `useSimulatorStore`：虚拟组合选择、预算、串关类型、模拟结果。
+- `useModelMetadataStore`：模型版本、数据快照时间、免责声明配置。
+
+建议 Composables / Services：
+
+- `useMatches`：读取比赛列表和比赛详情。
+- `useScorelines`：读取比分概率、体彩赔率、价值信号。
+- `useGroups`：读取小组出线概率和小组强度。
+- `useSimulator`：提交虚拟组合并接收风险评级。
+- `useModelExplain`：读取影响因素瀑布图和模型解释数据。
+
 建议目录结构：
 
 ```text
 web/
   src/
+    main.ts
+    App.vue
+    router/
+    stores/
     pages/
     components/
-    api/
+      match/
+      group/
+      simulator/
+      common/
+    composables/
+    services/
     charts/
     types/
+    styles/
 ```
 
 ## 8. 第一期验收标准
@@ -455,7 +508,7 @@ web/
 2. 实现 Pydantic Schema。
 3. 实现比赛、比分、小组、价值信号等只读接口。
 4. 实现模拟器计算接口。
-5. 搭建 React/Vite 前端。
+5. 搭建 Vue 3/Vite/TypeScript 前端，配置 Vue Router、Pinia 和 Element Plus。
 6. 实现首页总览。
 7. 实现带瀑布图的比赛分析页。
 8. 实现带第三名晋级 Tooltip 的小组出线页。
