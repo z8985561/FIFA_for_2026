@@ -12,6 +12,8 @@ from .schemas import (
     HealthResponse,
     MatchDetail,
     MatchSummary,
+    MetadataResponse,
+    ScheduleMatch,
     ScorelineRow,
     SimulatorRequest,
     SimulatorResponse,
@@ -48,6 +50,11 @@ def health(store: Annotated[DashboardDataStore, Depends(get_store)]) -> HealthRe
     return HealthResponse(status="ok", row_counts=store.row_counts())
 
 
+@app.get("/api/metadata", response_model=MetadataResponse)
+def metadata(store: Annotated[DashboardDataStore, Depends(get_store)]) -> MetadataResponse:
+    return store.metadata()
+
+
 @app.get("/api/matches", response_model=list[MatchSummary])
 def list_matches(
     store: Annotated[DashboardDataStore, Depends(get_store)],
@@ -55,6 +62,15 @@ def list_matches(
     group_name: str | None = None,
 ) -> list[MatchSummary]:
     return store.list_matches(limit=limit, group_name=group_name)
+
+
+@app.get("/api/schedule", response_model=list[ScheduleMatch])
+def list_schedule(
+    store: Annotated[DashboardDataStore, Depends(get_store)],
+    stage: str | None = None,
+    group_name: str | None = None,
+) -> list[ScheduleMatch]:
+    return store.list_schedule(stage=stage, group_name=group_name)
 
 
 @app.get("/api/matches/{match_no}", response_model=MatchDetail)

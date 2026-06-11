@@ -13,6 +13,17 @@ def test_health_loads_dashboard_data() -> None:
     assert payload["row_counts"]["enhanced_predictions"] >= 4
 
 
+def test_metadata_exposes_snapshot_times_and_compliance_note() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/metadata")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["model_version"] == "dashboard-mvp-0.1"
+    assert payload["latest_score_odds_fetched_at"] is not None
+    assert "真实下单" in payload["compliance_note"]
+
+
 def test_matches_return_chinese_team_names() -> None:
     with TestClient(app) as client:
         response = client.get("/api/matches?limit=2")
@@ -21,6 +32,18 @@ def test_matches_return_chinese_team_names() -> None:
     matches = response.json()
     assert matches[0]["home_team_zh"] == "墨西哥"
     assert matches[0]["away_team_zh"] == "南非"
+
+
+def test_schedule_returns_full_fixture_list_with_knockout_placeholders() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/schedule")
+
+    assert response.status_code == 200
+    rows = response.json()
+    assert len(rows) == 104
+    assert rows[0]["home_team_zh"] == "墨西哥"
+    assert rows[-1]["stage"] == "Final"
+    assert rows[-1]["home_team_zh"] == "待定"
 
 
 def test_match_scorelines_include_value_fields() -> None:

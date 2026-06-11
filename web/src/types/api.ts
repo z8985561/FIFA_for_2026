@@ -3,6 +3,16 @@ export interface HealthResponse {
   row_counts: Record<string, number>
 }
 
+export interface MetadataResponse {
+  model_version: string
+  data_scope: string
+  row_counts: Record<string, number>
+  latest_score_odds_fetched_at?: string | null
+  latest_market_fetched_at?: string | null
+  latest_match_date_et?: string | null
+  compliance_note: string
+}
+
 export interface MatchSummary {
   match_no: number
   stage?: string | null
@@ -24,6 +34,24 @@ export interface MatchSummary {
   latest_fetched_at?: string | null
   top_scoreline?: string | null
   top_scoreline_probability?: number | null
+}
+
+export interface ScheduleMatch {
+  match_no: number
+  stage: string
+  group_name?: string | null
+  date_et?: string | null
+  time_et?: string | null
+  date_bj?: string | null
+  time_bj?: string | null
+  home_team: string
+  away_team: string
+  home_team_zh: string
+  away_team_zh: string
+  venue?: string | null
+  city?: string | null
+  venue_city?: string | null
+  neutral: boolean
 }
 
 export interface FactorBreakdown {

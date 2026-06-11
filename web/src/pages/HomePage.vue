@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 
+import DataSnapshotBar from '@/components/common/DataSnapshotBar.vue'
 import MatchCard from '@/components/match/MatchCard.vue'
 import ScorelineTable from '@/components/match/ScorelineTable.vue'
 import StatCard from '@/components/common/StatCard.vue'
@@ -29,6 +30,8 @@ onMounted(() => {
         当前版本只做研究分析和虚拟组合模拟，所有概率均来自本地模型产物与已入库赔率快照。
       </p>
     </header>
+
+    <DataSnapshotBar />
 
     <div class="stat-grid">
       <StatCard

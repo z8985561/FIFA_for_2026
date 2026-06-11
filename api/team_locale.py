@@ -49,6 +49,7 @@ TEAM_NAME_ZH: dict[str, str] = {
     "United States": "美国",
     "Uruguay": "乌拉圭",
     "Uzbekistan": "乌兹别克斯坦",
+    "TBD": "待定",
 }
 
 

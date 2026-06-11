@@ -21,6 +21,8 @@ from .schemas import (
     GroupAdvanceRow,
     MatchDetail,
     MatchSummary,
+    MetadataResponse,
+    ScheduleMatch,
     ScorelineRow,
     SimulatorCombination,
     SimulatorRequest,
@@ -109,6 +111,22 @@ class DashboardDataStore:
             "match_features": len(self.match_features),
         }
 
+    def metadata(self) -> MetadataResponse:
+        latest_score_odds = self._latest_text(self.value_bets, "latest_fetched_at")
+        latest_market = self._latest_text(self.enhanced, "latest_fetched_at")
+        latest_match = self._latest_text(self.enhanced, "date_et")
+        return MetadataResponse(
+            model_version="dashboard-mvp-0.1",
+            data_scope="2026 World Cup local model outputs and ingested odds snapshots",
+            row_counts=self.row_counts(),
+            latest_score_odds_fetched_at=latest_score_odds,
+            latest_market_fetched_at=latest_market,
+            latest_match_date_et=latest_match,
+            compliance_note=(
+                "仅用于概率研究和虚拟模拟，不提供真实下单、支付或账户功能。"
+            ),
+        )
+
     def list_matches(
         self,
         *,
@@ -122,6 +140,22 @@ class DashboardDataStore:
         if limit is not None:
             rows = rows.head(limit)
         return [self._match_summary(row) for _, row in rows.iterrows()]
+
+    def list_schedule(
+        self,
+        *,
+        stage: str | None = None,
+        group_name: str | None = None,
+    ) -> list[ScheduleMatch]:
+        rows = self.fixtures.copy()
+        if rows.empty:
+            return []
+        if stage:
+            rows = rows[rows["stage"].eq(stage)]
+        if group_name:
+            rows = rows[rows["group_name"].eq(group_name)]
+        rows = rows.sort_values(["date_et", "time_et", "match_no"], na_position="last")
+        return [self._schedule_match(row) for _, row in rows.iterrows()]
 
     def get_match(self, match_no: int) -> MatchDetail:
         rows = self._match_rows()
@@ -365,6 +399,27 @@ class DashboardDataStore:
             top_scoreline_probability=_as_float(row, "top_scoreline_probability"),
         )
 
+    def _schedule_match(self, row: pd.Series) -> ScheduleMatch:
+        home_team = _as_str(row, "home_team") or "TBD"
+        away_team = _as_str(row, "away_team") or "TBD"
+        return ScheduleMatch(
+            match_no=int(row.match_no),
+            stage=_as_str(row, "stage") or "Unknown",
+            group_name=_as_str(row, "group_name"),
+            date_et=_as_str(row, "date_et"),
+            time_et=_as_str(row, "time_et"),
+            date_bj=_as_str(row, "date_bj"),
+            time_bj=_as_str(row, "time_bj"),
+            home_team=home_team,
+            away_team=away_team,
+            home_team_zh=zh_team_name(home_team) or "待定",
+            away_team_zh=zh_team_name(away_team) or "待定",
+            venue=_as_str(row, "venue"),
+            city=_as_str(row, "city"),
+            venue_city=_as_str(row, "venue_city"),
+            neutral=_as_bool(row, "neutral"),
+        )
+
     def _scoreline_value_rows(self) -> pd.DataFrame:
         if self.value_bets.empty:
             if self.scorelines.empty:
@@ -376,6 +431,21 @@ class DashboardDataStore:
             rows["value_signal"] = "missing_odds"
             return rows
         return self.value_bets.copy()
+
+    @staticmethod
+    def _latest_text(rows: pd.DataFrame, column: str) -> str | None:
+        if rows.empty or column not in rows.columns:
+            return None
+        values = rows[column].dropna()
+        if values.empty:
+            return None
+        try:
+            parsed = pd.to_datetime(values, errors="coerce", utc=True).dropna()
+        except (TypeError, ValueError):
+            parsed = pd.Series(dtype="datetime64[ns, UTC]")
+        if not parsed.empty:
+            return parsed.max().isoformat()
+        return str(values.max())
 
     def _scoreline_row(self, row: pd.Series) -> ScorelineRow:
         probability = (

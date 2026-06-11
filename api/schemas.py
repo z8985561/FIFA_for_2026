@@ -8,6 +8,16 @@ class HealthResponse(BaseModel):
     row_counts: dict[str, int]
 
 
+class MetadataResponse(BaseModel):
+    model_version: str
+    data_scope: str
+    row_counts: dict[str, int]
+    latest_score_odds_fetched_at: str | None = None
+    latest_market_fetched_at: str | None = None
+    latest_match_date_et: str | None = None
+    compliance_note: str
+
+
 class MatchSummary(BaseModel):
     match_no: int
     stage: str | None = None
@@ -29,6 +39,24 @@ class MatchSummary(BaseModel):
     latest_fetched_at: str | None = None
     top_scoreline: str | None = None
     top_scoreline_probability: float | None = None
+
+
+class ScheduleMatch(BaseModel):
+    match_no: int
+    stage: str
+    group_name: str | None = None
+    date_et: str | None = None
+    time_et: str | None = None
+    date_bj: str | None = None
+    time_bj: str | None = None
+    home_team: str
+    away_team: str
+    home_team_zh: str
+    away_team_zh: str
+    venue: str | None = None
+    city: str | None = None
+    venue_city: str | None = None
+    neutral: bool = True
 
 
 class MatchDetail(BaseModel):

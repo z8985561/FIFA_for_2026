@@ -3,6 +3,8 @@ import type {
   HealthResponse,
   MatchDetail,
   MatchSummary,
+  MetadataResponse,
+  ScheduleMatch,
   ScorelineRow,
   SimulatorResponse,
   SimulatorSelection,
@@ -28,6 +30,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const dashboardApi = {
   health: () => request<HealthResponse>('/api/health'),
+  metadata: () => request<MetadataResponse>('/api/metadata'),
+  schedule: (params?: { stage?: string; groupName?: string }) => {
+    const query = new URLSearchParams()
+    if (params?.stage) {
+      query.set('stage', params.stage)
+    }
+    if (params?.groupName) {
+      query.set('group_name', params.groupName)
+    }
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    return request<ScheduleMatch[]>(`/api/schedule${suffix}`)
+  },
   matches: (limit?: number) => {
     const query = limit ? `?limit=${limit}` : ''
     return request<MatchSummary[]>(`/api/matches${query}`)

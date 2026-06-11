@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef } from 'vue'
 
+import DataSnapshotBar from '@/components/common/DataSnapshotBar.vue'
 import ScorelineTable from '@/components/match/ScorelineTable.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import { useAsyncState } from '@/composables/useAsyncState'
@@ -53,6 +54,8 @@ onMounted(loadRows)
         这里比较模型概率、公平赔率与市场赔率。强价值不是推荐下单，而是提示“模型定价与市场定价差异较大”的研究样本。
       </p>
     </header>
+
+    <DataSnapshotBar />
 
     <div class="stat-grid">
       <StatCard label="展示样本" :value="String(rows.data.value?.length ?? 0)" hint="当前筛选结果" />

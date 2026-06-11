@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, shallowRef, watch } from 'vue'
 
+import DataSnapshotBar from '@/components/common/DataSnapshotBar.vue'
 import ScorelineTable from '@/components/match/ScorelineTable.vue'
 import { useAsyncState } from '@/composables/useAsyncState'
 import { dashboardApi } from '@/services/api'
@@ -79,6 +80,8 @@ onMounted(() => {
       <h1>虚拟组合模拟器</h1>
       <p>只做概率、理论返奖和风险分层研究，不构成购彩建议。</p>
     </header>
+
+    <DataSnapshotBar />
 
     <section class="section-card simulator-layout">
       <div class="sim-form">

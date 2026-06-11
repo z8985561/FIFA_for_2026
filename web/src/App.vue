@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const navItems = [
   { path: '/', label: '总览' },
+  { path: '/schedule', label: '完整赛程' },
   { path: '/matches/1', label: '比赛分析' },
   { path: '/value', label: '比分价值' },
   { path: '/groups', label: '小组出线' },
