@@ -1,0 +1,19 @@
+{
+  "fetched_at": "2026-06-10T02:35:40.087660+00:00",
+  "job": {
+    "label": "world-cup-events",
+    "command": "events",
+    "sport": "soccer_fifa_world_cup",
+    "date_format": "iso"
+  },
+  "request_url": "https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/events?apiKey=0a4f16b867b589bbf99876b31d7e3d20&dateFormat=iso",
+  "params": {
+    "dateFormat": "iso"
+  },
+  "response_headers": {
+    "x-requests-remaining": "495",
+    "x-requests-used": "5",
+    "x-requests-last": "0",
+    "content-type": "application/json; charset=utf-8"
+  }
+}

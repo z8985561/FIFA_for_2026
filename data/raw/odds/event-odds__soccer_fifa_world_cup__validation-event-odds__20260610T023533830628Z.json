@@ -1,0 +1,646 @@
+{
+  "id": "80d82d1113934bfbea4ce8daf37a2433",
+  "sport_key": "soccer_fifa_world_cup",
+  "sport_title": "FIFA World Cup",
+  "commence_time": "2026-06-11T19:00:00Z",
+  "home_team": "Mexico",
+  "away_team": "South Africa",
+  "bookmakers": [
+    {
+      "key": "marathonbet",
+      "title": "Marathon Bet",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:27Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.43
+            },
+            {
+              "name": "South Africa",
+              "price": 9.1
+            },
+            {
+              "name": "Draw",
+              "price": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "pinnacle",
+      "title": "Pinnacle",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:20Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.41
+            },
+            {
+              "name": "South Africa",
+              "price": 8.77
+            },
+            {
+              "name": "Draw",
+              "price": 4.62
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "betfair_ex_eu",
+      "title": "Betfair",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:19Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.44
+            },
+            {
+              "name": "South Africa",
+              "price": 9.8
+            },
+            {
+              "name": "Draw",
+              "price": 4.8
+            }
+          ]
+        },
+        {
+          "key": "h2h_lay",
+          "last_update": "2026-06-10T02:35:19Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.45
+            },
+            {
+              "name": "South Africa",
+              "price": 10.0
+            },
+            {
+              "name": "Draw",
+              "price": 4.9
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "everygame",
+      "title": "Everygame",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:33:30Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.4
+            },
+            {
+              "name": "South Africa",
+              "price": 8.5
+            },
+            {
+              "name": "Draw",
+              "price": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "unibet_fr",
+      "title": "Unibet (FR)",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:17Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.4
+            },
+            {
+              "name": "South Africa",
+              "price": 9.0
+            },
+            {
+              "name": "Draw",
+              "price": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "coolbet",
+      "title": "Coolbet",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:00Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.43
+            },
+            {
+              "name": "South Africa",
+              "price": 9.4
+            },
+            {
+              "name": "Draw",
+              "price": 4.65
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "sport888",
+      "title": "888sport",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:34:57Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.4
+            },
+            {
+              "name": "South Africa",
+              "price": 8.0
+            },
+            {
+              "name": "Draw",
+              "price": 4.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "williamhill",
+      "title": "William Hill",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:34:20Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.4
+            },
+            {
+              "name": "South Africa",
+              "price": 8.0
+            },
+            {
+              "name": "Draw",
+              "price": 4.2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "unibet_nl",
+      "title": "Unibet (NL)",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:34:20Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.43
+            },
+            {
+              "name": "South Africa",
+              "price": 9.0
+            },
+            {
+              "name": "Draw",
+              "price": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "leovegas_se",
+      "title": "LeoVegas (SE)",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:34:58Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.42
+            },
+            {
+              "name": "South Africa",
+              "price": 8.5
+            },
+            {
+              "name": "Draw",
+              "price": 4.35
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "unibet_se",
+      "title": "Unibet (SE)",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:34:21Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.43
+            },
+            {
+              "name": "South Africa",
+              "price": 9.0
+            },
+            {
+              "name": "Draw",
+              "price": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "betonlineag",
+      "title": "BetOnline.ag",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:17Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.42
+            },
+            {
+              "name": "South Africa",
+              "price": 8.75
+            },
+            {
+              "name": "Draw",
+              "price": 4.65
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "pmu_fr",
+      "title": "PMU (FR)",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:34:57Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.41
+            },
+            {
+              "name": "South Africa",
+              "price": 8.5
+            },
+            {
+              "name": "Draw",
+              "price": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "mybookieag",
+      "title": "MyBookie.ag",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:34:40Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.38
+            },
+            {
+              "name": "South Africa",
+              "price": 8.1
+            },
+            {
+              "name": "Draw",
+              "price": 4.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "winamax_fr",
+      "title": "Winamax (FR)",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:20Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.38
+            },
+            {
+              "name": "South Africa",
+              "price": 7.75
+            },
+            {
+              "name": "Draw",
+              "price": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "betclic_fr",
+      "title": "Betclic (FR)",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:34:37Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.4
+            },
+            {
+              "name": "South Africa",
+              "price": 8.75
+            },
+            {
+              "name": "Draw",
+              "price": 4.55
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "betsson",
+      "title": "Betsson",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:17Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.44
+            },
+            {
+              "name": "South Africa",
+              "price": 9.5
+            },
+            {
+              "name": "Draw",
+              "price": 4.2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "gtbets",
+      "title": "GTbets",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:21Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.47
+            },
+            {
+              "name": "South Africa",
+              "price": 8.34
+            },
+            {
+              "name": "Draw",
+              "price": 4.37
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "nordicbet",
+      "title": "Nordic Bet",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:17Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.44
+            },
+            {
+              "name": "South Africa",
+              "price": 9.5
+            },
+            {
+              "name": "Draw",
+              "price": 4.2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "onexbet",
+      "title": "1xBet",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:34:57Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.44
+            },
+            {
+              "name": "South Africa",
+              "price": 8.9
+            },
+            {
+              "name": "Draw",
+              "price": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "matchbook",
+      "title": "Matchbook",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:17Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.44
+            },
+            {
+              "name": "South Africa",
+              "price": 9.6
+            },
+            {
+              "name": "Draw",
+              "price": 4.8
+            }
+          ]
+        },
+        {
+          "key": "h2h_lay",
+          "last_update": "2026-06-10T02:35:17Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.45
+            },
+            {
+              "name": "South Africa",
+              "price": 9.8
+            },
+            {
+              "name": "Draw",
+              "price": 4.9
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "betanysports",
+      "title": "BetAnything",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:17Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.4
+            },
+            {
+              "name": "South Africa",
+              "price": 8.5
+            },
+            {
+              "name": "Draw",
+              "price": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "codere_it",
+      "title": "Codere (IT)",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:18Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.41
+            },
+            {
+              "name": "South Africa",
+              "price": 8.6
+            },
+            {
+              "name": "Draw",
+              "price": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "winamax_de",
+      "title": "Winamax (DE)",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:35:21Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.39
+            },
+            {
+              "name": "South Africa",
+              "price": 7.75
+            },
+            {
+              "name": "Draw",
+              "price": 4.6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "tipico_de",
+      "title": "Tipico",
+      "markets": [
+        {
+          "key": "h2h",
+          "last_update": "2026-06-10T02:34:21Z",
+          "outcomes": [
+            {
+              "name": "Mexico",
+              "price": 1.37
+            },
+            {
+              "name": "South Africa",
+              "price": 9.0
+            },
+            {
+              "name": "Draw",
+              "price": 4.7
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

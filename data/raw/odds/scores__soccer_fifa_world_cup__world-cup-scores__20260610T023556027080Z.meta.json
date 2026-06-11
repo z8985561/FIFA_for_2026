@@ -1,0 +1,21 @@
+{
+  "fetched_at": "2026-06-10T02:35:56.026080+00:00",
+  "job": {
+    "label": "world-cup-scores",
+    "command": "scores",
+    "sport": "soccer_fifa_world_cup",
+    "days_from": 3,
+    "date_format": "iso"
+  },
+  "request_url": "https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/scores?apiKey=0a4f16b867b589bbf99876b31d7e3d20&daysFrom=3&dateFormat=iso",
+  "params": {
+    "daysFrom": "3",
+    "dateFormat": "iso"
+  },
+  "response_headers": {
+    "x-requests-remaining": "489",
+    "x-requests-used": "11",
+    "x-requests-last": "2",
+    "content-type": "application/json; charset=utf-8"
+  }
+}

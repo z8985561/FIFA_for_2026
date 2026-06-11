@@ -1,0 +1,13 @@
+{
+  "fetched_at": "2026-06-10T02:25:43.065605+00:00",
+  "command": "sports",
+  "sport": null,
+  "request_url": "https://api.the-odds-api.com/v4/sports?apiKey=0a4f16b867b589bbf99876b31d7e3d20",
+  "params": {},
+  "response_headers": {
+    "x-requests-remaining": "499",
+    "x-requests-used": "1",
+    "x-requests-last": "0",
+    "content-type": "application/json; charset=utf-8"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "fetched_at": "2026-06-10T02:35:33.830628+00:00",
+  "job": {
+    "command": "event-odds",
+    "sport": "soccer_fifa_world_cup",
+    "regions": "eu",
+    "markets": "h2h",
+    "odds_format": "decimal",
+    "date_format": "iso",
+    "event_id": "80d82d1113934bfbea4ce8daf37a2433",
+    "label": "validation-event-odds"
+  },
+  "request_url": "https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/events/80d82d1113934bfbea4ce8daf37a2433/odds?apiKey=0a4f16b867b589bbf99876b31d7e3d20&regions=eu&markets=h2h&oddsFormat=decimal&dateFormat=iso",
+  "params": {
+    "regions": "eu",
+    "markets": "h2h",
+    "oddsFormat": "decimal",
+    "dateFormat": "iso"
+  },
+  "response_headers": {
+    "x-requests-remaining": "495",
+    "x-requests-used": "5",
+    "x-requests-last": "1",
+    "content-type": "application/json; charset=utf-8"
+  }
+}
