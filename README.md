@@ -24,6 +24,28 @@ python --version
 python -m jupyter lab
 ```
 
+## Web Dashboard Quick Start
+
+Start the FastAPI backend:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Start the Vue 3 frontend in another terminal:
+
+```powershell
+cd web
+npm install
+npm run dev
+```
+
+Local URLs:
+
+- API docs: `http://127.0.0.1:8000/docs`
+- Vue dashboard: `http://127.0.0.1:5173`
+
 ## Docker Quick Start
 
 ```powershell

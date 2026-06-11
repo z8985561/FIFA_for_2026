@@ -23,3 +23,5 @@ reports/world_cup_2026_pack/
 *.feather
 *.tmp
 *.log
+web/node_modules/
+web/dist/

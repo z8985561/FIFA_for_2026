@@ -1,0 +1,59 @@
+import type {
+  GroupAdvanceRow,
+  HealthResponse,
+  MatchDetail,
+  MatchSummary,
+  ScorelineRow,
+  SimulatorResponse,
+  SimulatorSelection,
+} from '@/types/api'
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+    ...options,
+  })
+
+  if (!response.ok) {
+    throw new Error(`API 请求失败：${response.status}`)
+  }
+
+  return (await response.json()) as T
+}
+
+export const dashboardApi = {
+  health: () => request<HealthResponse>('/api/health'),
+  matches: (limit?: number) => {
+    const query = limit ? `?limit=${limit}` : ''
+    return request<MatchSummary[]>(`/api/matches${query}`)
+  },
+  matchDetail: (matchNo: number) => request<MatchDetail>(`/api/matches/${matchNo}`),
+  matchScorelines: (matchNo: number, limit = 10) =>
+    request<ScorelineRow[]>(`/api/matches/${matchNo}/scorelines?limit=${limit}`),
+  valueScorelines: (limit = 20, sortBy = 'edge', signal?: string) => {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      sort_by: sortBy,
+    })
+    if (signal) {
+      params.set('signal', signal)
+    }
+    return request<ScorelineRow[]>(`/api/scorelines/value?${params.toString()}`)
+  },
+  groupAdvance: () => request<GroupAdvanceRow[]>('/api/groups/advance'),
+  settleSimulator: (payload: {
+    budget: number
+    stake_per_combination: number
+    bet_type: string
+    selections: SimulatorSelection[]
+  }) =>
+    request<SimulatorResponse>('/api/simulator/settle', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+}
