@@ -8,6 +8,8 @@ This workspace is prepared for World Cup match win probability research on Windo
 - Scoreline data enhancement plan:
   [docs/scoreline_data_enhancement_plan.md](docs/scoreline_data_enhancement_plan.md)
 - Web 看板 PRD: [docs/web_dashboard_prd.md](docs/web_dashboard_prd.md)
+- Web 看板下一阶段开发规划:
+  [docs/web_dashboard_next_phase_plan.md](docs/web_dashboard_next_phase_plan.md)
 
 ## Environment
 
