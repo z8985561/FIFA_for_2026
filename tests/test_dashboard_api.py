@@ -31,6 +31,8 @@ def test_match_scorelines_include_value_fields() -> None:
     rows = response.json()
     assert len(rows) == 3
     assert {"scoreline", "model_probability", "value_signal"}.issubset(rows[0])
+    assert rows[0]["home_team_zh"] == "墨西哥"
+    assert rows[0]["away_team_zh"] == "南非"
 
 
 def test_group_advance_repairs_chinese_names() -> None:
