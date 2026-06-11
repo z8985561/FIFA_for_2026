@@ -1,6 +1,8 @@
 import pandas as pd
 
 from src.scoreline_model import (
+    add_group_match_rounds,
+    apply_group_opener_mismatch_adjustment,
     apply_lineup_goal_rate_adjustment,
     apply_market_scoreline_constraints,
     build_scoreline_market_constraints,
@@ -81,6 +83,59 @@ def test_apply_lineup_goal_rate_adjustment_keeps_rates_positive() -> None:
     assert adjusted["home_expected_goals"] > 1.5
     assert adjusted["away_expected_goals"] < 1.0
     assert adjusted["home_lineup_goal_factor"] > 1.0
+
+
+def test_add_group_match_rounds_assigns_two_matches_per_group_round() -> None:
+    fixtures = pd.DataFrame(
+        {
+            "match_no": [1, 2, 3, 4, 5],
+            "group_name": ["Group A", "Group A", "Group A", "Group A", "Group B"],
+            "date_et": pd.to_datetime(
+                [
+                    "2026-06-11",
+                    "2026-06-11",
+                    "2026-06-16",
+                    "2026-06-16",
+                    "2026-06-12",
+                ]
+            ),
+        }
+    )
+
+    enriched = add_group_match_rounds(fixtures)
+
+    assert enriched.loc[enriched["match_no"].eq(1), "group_match_round"].item() == 1
+    assert enriched.loc[enriched["match_no"].eq(2), "group_match_round"].item() == 1
+    assert enriched.loc[enriched["match_no"].eq(3), "group_match_round"].item() == 2
+    assert enriched.loc[enriched["match_no"].eq(5), "group_match_round"].item() == 1
+
+
+def test_apply_group_opener_mismatch_adjustment_boosts_only_first_round_favorite() -> None:
+    adjusted = apply_group_opener_mismatch_adjustment(
+        home_goal_rate=1.5,
+        away_goal_rate=0.8,
+        stage="Group Stage",
+        group_match_round=1,
+        elo_diff=180.0,
+        home_team="Mexico",
+        away_team="South Africa",
+    )
+    unchanged = apply_group_opener_mismatch_adjustment(
+        home_goal_rate=1.5,
+        away_goal_rate=0.8,
+        stage="Group Stage",
+        group_match_round=2,
+        elo_diff=180.0,
+        home_team="Mexico",
+        away_team="South Africa",
+    )
+
+    assert adjusted["group_opener_mismatch_adjustment_applied"] is True
+    assert adjusted["group_opener_favorite_team"] == "Mexico"
+    assert adjusted["home_expected_goals"] > 1.5
+    assert adjusted["away_expected_goals"] == 0.8
+    assert unchanged["group_opener_mismatch_adjustment_applied"] is False
+    assert unchanged["home_expected_goals"] == 1.5
 
 
 def test_build_scoreline_market_constraints_normalizes_had_and_ttg() -> None:

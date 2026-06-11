@@ -36,6 +36,8 @@ DEFAULT_TOP_SCORES = 10
 MAX_LINEUP_LOG_ADJUSTMENT = 0.12
 DEFAULT_MARKET_OUTCOME_ANCHOR_WEIGHT = 0.25
 DEFAULT_MARKET_TOTAL_GOALS_ANCHOR_WEIGHT = 0.35
+GROUP_OPENER_MISMATCH_ELO_THRESHOLD = 150.0
+GROUP_OPENER_FAVORITE_ATTACK_LOG_BOOST = 0.045
 
 PLAYER_ATTACK_IMPACTS = {
     "Christian Pulisic": 0.05,
@@ -106,6 +108,20 @@ class ScorelineOutputs:
     metrics: ScorelineMetrics
     matches_analyzed: int
     rows: int
+
+
+def add_group_match_rounds(fixtures: pd.DataFrame) -> pd.DataFrame:
+    if fixtures.empty or "group_name" not in fixtures.columns:
+        return fixtures.copy()
+    enriched = fixtures.copy()
+    enriched["group_match_order"] = (
+        enriched.sort_values(["date_et", "match_no"])
+        .groupby("group_name", dropna=False)
+        .cumcount()
+        + 1
+    )
+    enriched["group_match_round"] = ((enriched["group_match_order"] - 1) // 2 + 1).astype(int)
+    return enriched.drop(columns=["group_match_order"])
 
 
 def ensure_scoreline_inputs() -> None:
@@ -260,6 +276,59 @@ def apply_lineup_goal_rate_adjustment(
         "away_lineup_log_adjustment": away_log_adjustment,
         "home_lineup_goal_factor": float(home_factor),
         "away_lineup_goal_factor": float(away_factor),
+        "home_expected_goals": float(adjusted_rates[0]),
+        "away_expected_goals": float(adjusted_rates[1]),
+    }
+
+
+def apply_group_opener_mismatch_adjustment(
+    *,
+    home_goal_rate: float,
+    away_goal_rate: float,
+    stage: object,
+    group_match_round: object,
+    elo_diff: object,
+    home_team: str,
+    away_team: str,
+    elo_threshold: float = GROUP_OPENER_MISMATCH_ELO_THRESHOLD,
+    favorite_attack_log_boost: float = GROUP_OPENER_FAVORITE_ATTACK_LOG_BOOST,
+) -> dict[str, object]:
+    try:
+        round_number = int(group_match_round)
+        elo_difference = float(elo_diff)
+    except (TypeError, ValueError):
+        round_number = 0
+        elo_difference = 0.0
+
+    favorite_elo_edge = abs(elo_difference)
+    is_group_opener = str(stage) == "Group Stage" and round_number == 1
+    applied = is_group_opener and favorite_elo_edge >= elo_threshold
+    home_log_adjustment = 0.0
+    away_log_adjustment = 0.0
+    favorite_team = None
+
+    if applied:
+        if elo_difference >= 0:
+            home_log_adjustment = favorite_attack_log_boost
+            favorite_team = home_team
+        else:
+            away_log_adjustment = favorite_attack_log_boost
+            favorite_team = away_team
+
+    adjusted_rates = clip_goal_rates(
+        np.array(
+            [
+                home_goal_rate * math.exp(home_log_adjustment),
+                away_goal_rate * math.exp(away_log_adjustment),
+            ]
+        )
+    )
+    return {
+        "group_opener_mismatch_adjustment_applied": bool(applied),
+        "group_opener_favorite_team": favorite_team,
+        "group_opener_favorite_elo_edge": float(favorite_elo_edge),
+        "home_group_opener_log_adjustment": float(home_log_adjustment),
+        "away_group_opener_log_adjustment": float(away_log_adjustment),
         "home_expected_goals": float(adjusted_rates[0]),
         "away_expected_goals": float(adjusted_rates[1]),
     }
@@ -575,7 +644,9 @@ def build_scoreline_analysis(
     market_constraints: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     columns = enhanced_feature_columns()
-    fixtures = fixture_features.sort_values(["date_et", "match_no"]).head(limit).copy()
+    fixtures = add_group_match_rounds(
+        fixture_features.sort_values(["date_et", "match_no"])
+    ).head(limit)
     home_rates = clip_goal_rates(home_model.predict(fixtures[columns]))
     away_rates = clip_goal_rates(away_model.predict(fixtures[columns]))
     lineup_summary = lineup_adjustment_summary(
@@ -606,9 +677,18 @@ def build_scoreline_analysis(
             home_lineup=home_lineup,
             away_lineup=away_lineup,
         )
+        opener_adjustment = apply_group_opener_mismatch_adjustment(
+            home_goal_rate=float(lineup_adjustment["home_expected_goals"]),
+            away_goal_rate=float(lineup_adjustment["away_expected_goals"]),
+            stage=row.stage,
+            group_match_round=getattr(row, "group_match_round", None),
+            elo_diff=getattr(row, "elo_diff", 0.0),
+            home_team=str(row.home_team),
+            away_team=str(row.away_team),
+        )
         matrix = scoreline_matrix(
-            float(lineup_adjustment["home_expected_goals"]),
-            float(lineup_adjustment["away_expected_goals"]),
+            float(opener_adjustment["home_expected_goals"]),
+            float(opener_adjustment["away_expected_goals"]),
             max_goals=max_goals,
             rho=rho,
         )
@@ -632,8 +712,8 @@ def build_scoreline_analysis(
                     "away_team_zh": TEAM_NAME_ZH.get(str(row.away_team), str(row.away_team)),
                     "raw_home_expected_goals": float(home_rate),
                     "raw_away_expected_goals": float(away_rate),
-                    "home_expected_goals": float(lineup_adjustment["home_expected_goals"]),
-                    "away_expected_goals": float(lineup_adjustment["away_expected_goals"]),
+                    "home_expected_goals": float(opener_adjustment["home_expected_goals"]),
+                    "away_expected_goals": float(opener_adjustment["away_expected_goals"]),
                     "home_lineup_goal_factor": lineup_adjustment["home_lineup_goal_factor"],
                     "away_lineup_goal_factor": lineup_adjustment["away_lineup_goal_factor"],
                     "home_lineup_log_adjustment": lineup_adjustment[
@@ -646,6 +726,22 @@ def build_scoreline_analysis(
                     "away_lineup_status": away_lineup["lineup_status"],
                     "home_formation": home_lineup["formation"],
                     "away_formation": away_lineup["formation"],
+                    "group_match_round": getattr(row, "group_match_round", None),
+                    "group_opener_mismatch_adjustment_applied": opener_adjustment[
+                        "group_opener_mismatch_adjustment_applied"
+                    ],
+                    "group_opener_favorite_team": opener_adjustment[
+                        "group_opener_favorite_team"
+                    ],
+                    "group_opener_favorite_elo_edge": opener_adjustment[
+                        "group_opener_favorite_elo_edge"
+                    ],
+                    "home_group_opener_log_adjustment": opener_adjustment[
+                        "home_group_opener_log_adjustment"
+                    ],
+                    "away_group_opener_log_adjustment": opener_adjustment[
+                        "away_group_opener_log_adjustment"
+                    ],
                     "has_market_outcome_constraint": bool(
                         market_constraint.get("has_market_outcome_constraint", False)
                     ),

@@ -225,6 +225,11 @@ marginal probabilities, while `总进球` odds softly anchor the total-goals dis
 the Poisson/Dixon-Coles matrix as the model foundation but reduces obvious disagreement with the
 current official market.
 
+For group-stage openers, the model applies a small historical-tempo adjustment only when the
+pre-match Elo gap is at least 150 points. This reflects the 1998-2022 World Cup pattern where
+clear favorites were more likely to chase early goal difference even in the first group match,
+while even-strength openers remain unadjusted.
+
 ## Correct Score Odds
 
 Collect publicly available correct-score odds and compare them against the model probabilities:
