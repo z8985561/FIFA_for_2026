@@ -2,6 +2,8 @@ import pandas as pd
 
 from src.scoreline_model import (
     apply_lineup_goal_rate_adjustment,
+    apply_market_scoreline_constraints,
+    build_scoreline_market_constraints,
     dixon_coles_factor,
     inflate_scoreline_probability,
     lineup_adjustment_summary,
@@ -79,3 +81,54 @@ def test_apply_lineup_goal_rate_adjustment_keeps_rates_positive() -> None:
     assert adjusted["home_expected_goals"] > 1.5
     assert adjusted["away_expected_goals"] < 1.0
     assert adjusted["home_lineup_goal_factor"] > 1.0
+
+
+def test_build_scoreline_market_constraints_normalizes_had_and_ttg() -> None:
+    snapshots = pd.DataFrame(
+        {
+            "match_no": [1, 1, 1, 1, 1],
+            "market_code": ["HAD", "HAD", "HAD", "TTG", "TTG"],
+            "outcome_code": ["home_win", "draw", "away_win", "total_goals_0", "total_goals_1"],
+            "decimal_odds": [1.5, 4.0, 7.5, 8.0, 4.0],
+        }
+    )
+
+    constraints = build_scoreline_market_constraints(snapshots)
+
+    assert bool(constraints.loc[0, "has_market_outcome_constraint"]) is True
+    assert bool(constraints.loc[0, "has_market_total_goals_constraint"]) is True
+    had_sum = (
+        constraints.loc[0, "market_home_win_probability"]
+        + constraints.loc[0, "market_draw_probability"]
+        + constraints.loc[0, "market_away_win_probability"]
+    )
+    assert round(float(had_sum), 8) == 1.0
+
+
+def test_apply_market_scoreline_constraints_moves_marginals_toward_market() -> None:
+    matrix = scoreline_matrix(1.0, 1.0, max_goals=5)
+    before = matrix_summary(matrix)
+    constraint = {
+        "has_market_outcome_constraint": True,
+        "market_home_win_probability": 0.70,
+        "market_draw_probability": 0.20,
+        "market_away_win_probability": 0.10,
+        "has_market_total_goals_constraint": True,
+        "market_total_goals_probabilities": {
+            "total_goals_0": 0.30,
+            "total_goals_1": 0.30,
+            "total_goals_2": 0.20,
+            "total_goals_3": 0.10,
+            "total_goals_4": 0.05,
+            "total_goals_5": 0.03,
+            "total_goals_6": 0.01,
+            "total_goals_7_plus": 0.01,
+        },
+    }
+
+    adjusted = apply_market_scoreline_constraints(matrix, constraint)
+    after = matrix_summary(adjusted)
+
+    assert round(adjusted["probability"].sum(), 8) == 1.0
+    assert after["score_home_win_probability"] > before["score_home_win_probability"]
+    assert after["over_2_5_probability"] < before["over_2_5_probability"]

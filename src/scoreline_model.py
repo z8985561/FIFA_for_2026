@@ -27,12 +27,15 @@ from .project_paths import (
     PREDICTED_LINEUPS_PATH,
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_METRICS_PATH,
+    SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH,
     ensure_project_directories,
 )
 
 DEFAULT_MAX_GOALS = 7
 DEFAULT_TOP_SCORES = 10
 MAX_LINEUP_LOG_ADJUSTMENT = 0.12
+DEFAULT_MARKET_OUTCOME_ANCHOR_WEIGHT = 0.25
+DEFAULT_MARKET_TOTAL_GOALS_ANCHOR_WEIGHT = 0.35
 
 PLAYER_ATTACK_IMPACTS = {
     "Christian Pulisic": 0.05,
@@ -392,6 +395,159 @@ def matrix_summary(matrix: pd.DataFrame) -> dict[str, float]:
     }
 
 
+def scoreline_outcome(home_goals: int, away_goals: int) -> str:
+    if home_goals > away_goals:
+        return "home_win"
+    if home_goals < away_goals:
+        return "away_win"
+    return "draw"
+
+
+def total_goals_bucket(home_goals: int, away_goals: int) -> str:
+    total_goals = int(home_goals) + int(away_goals)
+    return "total_goals_7_plus" if total_goals >= 7 else f"total_goals_{total_goals}"
+
+
+def fair_probabilities_from_decimal_odds(
+    rows: pd.DataFrame,
+    *,
+    outcome_column: str,
+) -> dict[str, float]:
+    if rows.empty:
+        return {}
+    working = rows.copy()
+    working["decimal_odds"] = pd.to_numeric(working["decimal_odds"], errors="coerce")
+    working = working.loc[working["decimal_odds"].gt(1.0)].copy()
+    if working.empty:
+        return {}
+    working["raw_probability"] = 1.0 / working["decimal_odds"]
+    probability_sum = float(working["raw_probability"].sum())
+    if probability_sum <= 0:
+        return {}
+    return {
+        str(row[outcome_column]): float(row["raw_probability"] / probability_sum)
+        for _, row in working.iterrows()
+    }
+
+
+def build_scoreline_market_constraints(
+    sporttery_market_odds_snapshots: pd.DataFrame,
+) -> pd.DataFrame:
+    if sporttery_market_odds_snapshots.empty:
+        return pd.DataFrame()
+
+    rows: list[dict[str, object]] = []
+    for match_no, group in sporttery_market_odds_snapshots.groupby("match_no", sort=True):
+        had_probabilities = fair_probabilities_from_decimal_odds(
+            group.loc[group["market_code"].eq("HAD")],
+            outcome_column="outcome_code",
+        )
+        ttg_probabilities = fair_probabilities_from_decimal_odds(
+            group.loc[group["market_code"].eq("TTG")],
+            outcome_column="outcome_code",
+        )
+        rows.append(
+            {
+                "match_no": int(match_no),
+                "has_market_outcome_constraint": {
+                    "home_win",
+                    "draw",
+                    "away_win",
+                }.issubset(had_probabilities),
+                "market_home_win_probability": had_probabilities.get("home_win"),
+                "market_draw_probability": had_probabilities.get("draw"),
+                "market_away_win_probability": had_probabilities.get("away_win"),
+                "has_market_total_goals_constraint": bool(ttg_probabilities),
+                "market_total_goals_probabilities": ttg_probabilities,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def constraint_for_match(
+    market_constraints: pd.DataFrame,
+    *,
+    match_no: int,
+) -> dict[str, object]:
+    if market_constraints.empty:
+        return {}
+    rows = market_constraints.loc[market_constraints["match_no"].eq(match_no)]
+    if rows.empty:
+        return {}
+    return rows.iloc[0].to_dict()
+
+
+def apply_market_probability_anchor(
+    matrix: pd.DataFrame,
+    *,
+    category_column: str,
+    target_probabilities: dict[str, float],
+    weight: float,
+) -> pd.DataFrame:
+    if not target_probabilities or weight <= 0:
+        return matrix
+    if weight > 1:
+        raise ValueError("weight must be less than or equal to 1")
+
+    adjusted = matrix.copy()
+    model_probabilities = adjusted.groupby(category_column)["probability"].sum().to_dict()
+    multipliers = {}
+    for category, target_probability in target_probabilities.items():
+        model_probability = float(model_probabilities.get(category, 0.0))
+        if model_probability <= 0 or target_probability is None:
+            continue
+        target_ratio = float(target_probability) / model_probability
+        multipliers[category] = (1.0 - weight) + weight * target_ratio
+
+    if not multipliers:
+        return matrix
+    adjusted["probability"] = adjusted["probability"] * adjusted[category_column].map(
+        multipliers
+    ).fillna(1.0)
+    adjusted["probability"] = adjusted["probability"] / adjusted["probability"].sum()
+    return adjusted
+
+
+def apply_market_scoreline_constraints(
+    matrix: pd.DataFrame,
+    constraint: dict[str, object],
+    *,
+    outcome_weight: float = DEFAULT_MARKET_OUTCOME_ANCHOR_WEIGHT,
+    total_goals_weight: float = DEFAULT_MARKET_TOTAL_GOALS_ANCHOR_WEIGHT,
+) -> pd.DataFrame:
+    if not constraint:
+        return matrix
+
+    adjusted = matrix.copy()
+    adjusted["outcome_bucket"] = [
+        scoreline_outcome(int(row.home_goals), int(row.away_goals))
+        for row in adjusted.itertuples(index=False)
+    ]
+    adjusted["total_goals_bucket"] = [
+        total_goals_bucket(int(row.home_goals), int(row.away_goals))
+        for row in adjusted.itertuples(index=False)
+    ]
+    if bool(constraint.get("has_market_outcome_constraint", False)):
+        adjusted = apply_market_probability_anchor(
+            adjusted,
+            category_column="outcome_bucket",
+            target_probabilities={
+                "home_win": float(constraint["market_home_win_probability"]),
+                "draw": float(constraint["market_draw_probability"]),
+                "away_win": float(constraint["market_away_win_probability"]),
+            },
+            weight=outcome_weight,
+        )
+    if bool(constraint.get("has_market_total_goals_constraint", False)):
+        adjusted = apply_market_probability_anchor(
+            adjusted,
+            category_column="total_goals_bucket",
+            target_probabilities=dict(constraint["market_total_goals_probabilities"]),
+            weight=total_goals_weight,
+        )
+    return adjusted.drop(columns=["outcome_bucket", "total_goals_bucket"])
+
+
 def inflate_scoreline_probability(
     matrix: pd.DataFrame,
     *,
@@ -416,6 +572,7 @@ def build_scoreline_analysis(
     max_goals: int,
     top_scores: int,
     predicted_lineups: pd.DataFrame | None = None,
+    market_constraints: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     columns = enhanced_feature_columns()
     fixtures = fixture_features.sort_values(["date_et", "match_no"]).head(limit).copy()
@@ -424,6 +581,7 @@ def build_scoreline_analysis(
     lineup_summary = lineup_adjustment_summary(
         pd.DataFrame() if predicted_lineups is None else predicted_lineups
     )
+    market_constraints = pd.DataFrame() if market_constraints is None else market_constraints
 
     rows = []
     for row, home_rate, away_rate in zip(
@@ -454,6 +612,11 @@ def build_scoreline_analysis(
             max_goals=max_goals,
             rho=rho,
         )
+        market_constraint = constraint_for_match(
+            market_constraints,
+            match_no=int(row.match_no),
+        )
+        matrix = apply_market_scoreline_constraints(matrix, market_constraint)
         summary = matrix_summary(matrix)
         top_matrix = matrix.sort_values("probability", ascending=False).head(top_scores)
         for rank, score_row in enumerate(top_matrix.itertuples(index=False), start=1):
@@ -483,6 +646,21 @@ def build_scoreline_analysis(
                     "away_lineup_status": away_lineup["lineup_status"],
                     "home_formation": home_lineup["formation"],
                     "away_formation": away_lineup["formation"],
+                    "has_market_outcome_constraint": bool(
+                        market_constraint.get("has_market_outcome_constraint", False)
+                    ),
+                    "market_home_win_probability": market_constraint.get(
+                        "market_home_win_probability"
+                    ),
+                    "market_draw_probability": market_constraint.get(
+                        "market_draw_probability"
+                    ),
+                    "market_away_win_probability": market_constraint.get(
+                        "market_away_win_probability"
+                    ),
+                    "has_market_total_goals_constraint": bool(
+                        market_constraint.get("has_market_total_goals_constraint", False)
+                    ),
                     "dixon_coles_rho": rho,
                     **summary,
                     "scoreline_rank": rank,
@@ -506,8 +684,16 @@ def prepare_scoreline_analysis(
     matches = pd.read_parquet(MATCHES_PATH)
     match_features = pd.read_parquet(MATCH_FEATURE_STORE_2026_PATH)
     predicted_lineups = pd.read_parquet(PREDICTED_LINEUPS_PATH)
+    sporttery_market_odds_snapshots = (
+        pd.read_parquet(SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH)
+        if SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH.exists()
+        else pd.DataFrame()
+    )
     historical_features = build_historical_enhanced_features(matches)
     fixture_features = build_2026_enhanced_features(match_features, matches)
+    market_constraints = build_scoreline_market_constraints(
+        sporttery_market_odds_snapshots
+    )
 
     home_model, away_model, metrics = train_scoreline_models(historical_features)
     analysis = build_scoreline_analysis(
@@ -519,6 +705,7 @@ def prepare_scoreline_analysis(
         max_goals=max_goals,
         top_scores=top_scores,
         predicted_lineups=predicted_lineups,
+        market_constraints=market_constraints,
     )
 
     SCORELINE_METRICS_PATH.write_text(

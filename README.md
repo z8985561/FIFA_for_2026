@@ -219,6 +219,12 @@ feature store used by the enhanced win-probability model, then applies a Dixon-C
 correlation correction. It should later be improved with xG, shot quality, player availability,
 odds, and weather calibration.
 
+When Sporttery fixed-bonus market snapshots are already available locally, the scoreline model
+also applies a conservative market-constraint layer. `胜平负` odds softly anchor the home/draw/away
+marginal probabilities, while `总进球` odds softly anchor the total-goals distribution. This keeps
+the Poisson/Dixon-Coles matrix as the model foundation but reduces obvious disagreement with the
+current official market.
+
 ## Correct Score Odds
 
 Collect publicly available correct-score odds and compare them against the model probabilities:
