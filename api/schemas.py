@@ -59,6 +59,27 @@ class ScheduleMatch(BaseModel):
     neutral: bool = True
 
 
+class DataQualityRow(BaseModel):
+    match_no: int
+    stage: str
+    group_name: str | None = None
+    home_team: str
+    away_team: str
+    home_team_zh: str
+    away_team_zh: str
+    has_fixture: bool
+    has_prediction: bool
+    has_scoreline_model: bool
+    has_score_odds: bool
+    has_market_odds: bool
+    has_lineup_adjustment: bool
+    latest_score_odds_fetched_at: str | None = None
+    latest_market_fetched_at: str | None = None
+    completeness_score: int
+    completeness_level: str
+    missing_items: list[str]
+
+
 class MatchDetail(BaseModel):
     match: MatchSummary
     expected_goals: dict[str, float | None]

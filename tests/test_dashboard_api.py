@@ -46,6 +46,28 @@ def test_schedule_returns_full_fixture_list_with_knockout_placeholders() -> None
     assert rows[-1]["home_team_zh"] == "待定"
 
 
+def test_data_quality_returns_high_quality_seeded_match_and_low_quality_final() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/data-quality")
+
+    assert response.status_code == 200
+    rows = response.json()
+    assert len(rows) == 104
+
+    match_one = next(row for row in rows if row["match_no"] == 1)
+    assert match_one["home_team_zh"] == "墨西哥"
+    assert match_one["completeness_level"] == "High"
+    assert match_one["completeness_score"] >= 90
+    assert match_one["missing_items"] == []
+
+    final = next(row for row in rows if row["match_no"] == 104)
+    assert final["stage"] == "Final"
+    assert final["home_team_zh"] == "待定"
+    assert final["completeness_level"] == "Low"
+    assert "missing_prediction" in final["missing_items"]
+    assert "missing_scoreline_model" in final["missing_items"]
+
+
 def test_match_scorelines_include_value_fields() -> None:
     with TestClient(app) as client:
         response = client.get("/api/matches/1/scorelines?limit=3")

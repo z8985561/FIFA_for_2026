@@ -18,6 +18,7 @@ from src.project_paths import (
 )
 
 from .schemas import (
+    DataQualityRow,
     GroupAdvanceRow,
     MatchDetail,
     MatchSummary,
@@ -156,6 +157,50 @@ class DashboardDataStore:
             rows = rows[rows["group_name"].eq(group_name)]
         rows = rows.sort_values(["date_et", "time_et", "match_no"], na_position="last")
         return [self._schedule_match(row) for _, row in rows.iterrows()]
+
+    def list_data_quality(self) -> list[DataQualityRow]:
+        if self.fixtures.empty:
+            return []
+
+        prediction_match_nos = set(self.enhanced["match_no"].astype(int).tolist())
+        scoreline_match_nos = set(self.scorelines["match_no"].astype(int).tolist())
+        odds_rows = self._scoreline_value_rows()
+        score_odds_match_nos = (
+            set(
+                odds_rows.loc[odds_rows["has_score_odds"].fillna(False), "match_no"]
+                .astype(int)
+                .tolist()
+            )
+            if not odds_rows.empty and "has_score_odds" in odds_rows.columns
+            else set()
+        )
+        market_odds_match_nos = (
+            set(
+                self.enhanced.loc[self.enhanced["has_market_odds"].fillna(False), "match_no"]
+                .astype(int)
+                .tolist()
+            )
+            if not self.enhanced.empty and "has_market_odds" in self.enhanced.columns
+            else set()
+        )
+        lineup_match_nos = self._lineup_adjusted_match_nos()
+        score_snapshot_by_match = self._latest_by_match(odds_rows, "latest_fetched_at")
+        market_snapshot_by_match = self._latest_by_match(self.enhanced, "latest_fetched_at")
+
+        rows = self.fixtures.sort_values(["date_et", "time_et", "match_no"], na_position="last")
+        return [
+            self._data_quality_row(
+                row=row,
+                prediction_match_nos=prediction_match_nos,
+                scoreline_match_nos=scoreline_match_nos,
+                score_odds_match_nos=score_odds_match_nos,
+                market_odds_match_nos=market_odds_match_nos,
+                lineup_match_nos=lineup_match_nos,
+                score_snapshot_by_match=score_snapshot_by_match,
+                market_snapshot_by_match=market_snapshot_by_match,
+            )
+            for _, row in rows.iterrows()
+        ]
 
     def get_match(self, match_no: int) -> MatchDetail:
         rows = self._match_rows()
@@ -420,6 +465,54 @@ class DashboardDataStore:
             neutral=_as_bool(row, "neutral"),
         )
 
+    def _data_quality_row(
+        self,
+        *,
+        row: pd.Series,
+        prediction_match_nos: set[int],
+        scoreline_match_nos: set[int],
+        score_odds_match_nos: set[int],
+        market_odds_match_nos: set[int],
+        lineup_match_nos: set[int],
+        score_snapshot_by_match: dict[int, str],
+        market_snapshot_by_match: dict[int, str],
+    ) -> DataQualityRow:
+        match_no = int(row.match_no)
+        home_team = _as_str(row, "home_team") or "TBD"
+        away_team = _as_str(row, "away_team") or "TBD"
+        latest_score_odds = score_snapshot_by_match.get(match_no)
+        latest_market = market_snapshot_by_match.get(match_no)
+        checks = {
+            "has_fixture": True,
+            "has_prediction": match_no in prediction_match_nos,
+            "has_scoreline_model": match_no in scoreline_match_nos,
+            "has_score_odds": match_no in score_odds_match_nos,
+            "has_market_odds": match_no in market_odds_match_nos,
+            "has_lineup_adjustment": match_no in lineup_match_nos,
+            "has_snapshot_time": bool(latest_score_odds or latest_market),
+        }
+        score = self._completeness_score(checks)
+        return DataQualityRow(
+            match_no=match_no,
+            stage=_as_str(row, "stage") or "Unknown",
+            group_name=_as_str(row, "group_name"),
+            home_team=home_team,
+            away_team=away_team,
+            home_team_zh=zh_team_name(home_team) or "待定",
+            away_team_zh=zh_team_name(away_team) or "待定",
+            has_fixture=checks["has_fixture"],
+            has_prediction=checks["has_prediction"],
+            has_scoreline_model=checks["has_scoreline_model"],
+            has_score_odds=checks["has_score_odds"],
+            has_market_odds=checks["has_market_odds"],
+            has_lineup_adjustment=checks["has_lineup_adjustment"],
+            latest_score_odds_fetched_at=latest_score_odds,
+            latest_market_fetched_at=latest_market,
+            completeness_score=score,
+            completeness_level=self._completeness_level(score),
+            missing_items=self._missing_items(checks),
+        )
+
     def _scoreline_value_rows(self) -> pd.DataFrame:
         if self.value_bets.empty:
             if self.scorelines.empty:
@@ -431,6 +524,72 @@ class DashboardDataStore:
             rows["value_signal"] = "missing_odds"
             return rows
         return self.value_bets.copy()
+
+    def _lineup_adjusted_match_nos(self) -> set[int]:
+        if self.scorelines.empty:
+            return set()
+        rows = self.scorelines.copy()
+        has_status = (
+            rows.get("home_lineup_status", pd.Series(index=rows.index, dtype=object)).notna()
+            & rows.get("away_lineup_status", pd.Series(index=rows.index, dtype=object)).notna()
+        )
+        has_adjustment = (
+            rows.get("home_lineup_log_adjustment", pd.Series(index=rows.index, dtype=float))
+            .fillna(0)
+            .ne(0)
+            | rows.get("away_lineup_log_adjustment", pd.Series(index=rows.index, dtype=float))
+            .fillna(0)
+            .ne(0)
+        )
+        return set(rows.loc[has_status | has_adjustment, "match_no"].astype(int).tolist())
+
+    @staticmethod
+    def _latest_by_match(rows: pd.DataFrame, column: str) -> dict[int, str]:
+        if rows.empty or column not in rows.columns or "match_no" not in rows.columns:
+            return {}
+        clean_rows = rows[["match_no", column]].dropna()
+        if clean_rows.empty:
+            return {}
+        clean_rows = clean_rows.copy()
+        clean_rows[column] = pd.to_datetime(clean_rows[column], errors="coerce", utc=True)
+        clean_rows = clean_rows.dropna(subset=[column])
+        if clean_rows.empty:
+            return {}
+        latest = clean_rows.groupby("match_no")[column].max()
+        return {int(match_no): value.isoformat() for match_no, value in latest.items()}
+
+    @staticmethod
+    def _completeness_score(checks: dict[str, bool]) -> int:
+        weights = {
+            "has_fixture": 10,
+            "has_prediction": 20,
+            "has_scoreline_model": 20,
+            "has_score_odds": 20,
+            "has_market_odds": 15,
+            "has_lineup_adjustment": 10,
+            "has_snapshot_time": 5,
+        }
+        return sum(weight for key, weight in weights.items() if checks.get(key, False))
+
+    @staticmethod
+    def _completeness_level(score: int) -> str:
+        if score >= 80:
+            return "High"
+        if score >= 50:
+            return "Medium"
+        return "Low"
+
+    @staticmethod
+    def _missing_items(checks: dict[str, bool]) -> list[str]:
+        missing_map = {
+            "has_prediction": "missing_prediction",
+            "has_scoreline_model": "missing_scoreline_model",
+            "has_score_odds": "missing_score_odds",
+            "has_market_odds": "missing_market_odds",
+            "has_lineup_adjustment": "missing_lineup_adjustment",
+            "has_snapshot_time": "missing_snapshot_time",
+        }
+        return [missing_item for key, missing_item in missing_map.items() if not checks[key]]
 
     @staticmethod
     def _latest_text(rows: pd.DataFrame, column: str) -> str | None:

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .data_store import DashboardDataStore
 from .schemas import (
+    DataQualityRow,
     GroupAdvanceRow,
     HealthResponse,
     MatchDetail,
@@ -71,6 +72,13 @@ def list_schedule(
     group_name: str | None = None,
 ) -> list[ScheduleMatch]:
     return store.list_schedule(stage=stage, group_name=group_name)
+
+
+@app.get("/api/data-quality", response_model=list[DataQualityRow])
+def list_data_quality(
+    store: Annotated[DashboardDataStore, Depends(get_store)],
+) -> list[DataQualityRow]:
+    return store.list_data_quality()
 
 
 @app.get("/api/matches/{match_no}", response_model=MatchDetail)
