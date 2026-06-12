@@ -2,21 +2,24 @@
 import { onMounted } from 'vue'
 
 import DataSnapshotBar from '@/components/common/DataSnapshotBar.vue'
+import HomeCompletenessSummary from '@/components/home/HomeCompletenessSummary.vue'
 import MatchCard from '@/components/match/MatchCard.vue'
 import ScorelineTable from '@/components/match/ScorelineTable.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import { useAsyncState } from '@/composables/useAsyncState'
 import { dashboardApi } from '@/services/api'
 import { useMatchStore } from '@/stores/match'
-import type { HealthResponse, ScorelineRow } from '@/types/api'
+import type { DataQualityRow, HealthResponse, ScorelineRow } from '@/types/api'
 
 const matchStore = useMatchStore()
 const health = useAsyncState<HealthResponse>()
+const dataQuality = useAsyncState<DataQualityRow[]>()
 const valueRows = useAsyncState<ScorelineRow[]>()
 
 onMounted(() => {
   matchStore.loadMatches()
   health.run(dashboardApi.health)
+  dataQuality.run(dashboardApi.dataQuality)
   valueRows.run(() => dashboardApi.valueScorelines(8, 'edge'))
 })
 </script>
@@ -32,6 +35,13 @@ onMounted(() => {
     </header>
 
     <DataSnapshotBar />
+
+    <HomeCompletenessSummary
+      :rows="dataQuality.data.value ?? []"
+      :focus-matches="matchStore.firstFourMatches"
+      :loading="dataQuality.loading.value"
+      :error="dataQuality.error.value"
+    />
 
     <div class="stat-grid">
       <StatCard

@@ -72,7 +72,7 @@ export interface DataQualityRow {
   latest_market_fetched_at?: string | null
   completeness_score: number
   completeness_level: 'High' | 'Medium' | 'Low'
-  missing_items: string[]
+  missing_items: readonly string[]
 }
 
 export interface FactorBreakdown {

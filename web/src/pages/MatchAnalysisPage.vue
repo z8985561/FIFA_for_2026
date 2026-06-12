@@ -3,24 +3,30 @@ import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import FactorWaterfall from '@/components/match/FactorWaterfall.vue'
+import MatchCompletenessCard from '@/components/match/MatchCompletenessCard.vue'
+import ScorelineProbabilityChart from '@/components/match/ScorelineProbabilityChart.vue'
 import MatchSwitcher from '@/components/match/MatchSwitcher.vue'
 import ScorelineTable from '@/components/match/ScorelineTable.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import { useAsyncState } from '@/composables/useAsyncState'
 import { dashboardApi } from '@/services/api'
 import { useMatchStore } from '@/stores/match'
-import type { MatchDetail, ScorelineRow } from '@/types/api'
+import type { DataQualityRow, MatchDetail, ScorelineRow } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
 const matchStore = useMatchStore()
 const detail = useAsyncState<MatchDetail>()
+const dataQuality = useAsyncState<DataQualityRow[]>()
 const scorelines = useAsyncState<ScorelineRow[]>()
 
 const matchNo = computed(() => Number(route.params.matchNo ?? 1))
 const matchTitle = computed(() => {
   const match = detail.data.value?.match
   return match ? `${match.home_team_zh} vs ${match.away_team_zh}` : '比赛分析'
+})
+const currentQuality = computed(() => {
+  return (dataQuality.data.value ?? []).find((row) => row.match_no === matchNo.value) ?? null
 })
 
 function percent(value?: number | null) {
@@ -40,6 +46,7 @@ onMounted(() => {
   if (!matchStore.matches.length) {
     matchStore.loadMatches()
   }
+  dataQuality.run(dashboardApi.dataQuality)
   loadPage()
 })
 watch(matchNo, loadPage)
@@ -77,6 +84,8 @@ watch(matchNo, loadPage)
       />
     </div>
 
+    <MatchCompletenessCard :quality="currentQuality" />
+
     <section v-if="detail.data.value" class="section-card">
       <div class="section-title">
         <h2>影响因素瀑布图</h2>
@@ -90,6 +99,7 @@ watch(matchNo, loadPage)
         <h2>Top 10 得分比概率</h2>
         <span>{{ scorelines.loading.value ? '加载中...' : '含体彩赔率快照' }}</span>
       </div>
+      <ScorelineProbabilityChart :rows="scorelines.data.value ?? []" />
       <ScorelineTable :rows="scorelines.data.value ?? []" />
     </section>
   </section>
