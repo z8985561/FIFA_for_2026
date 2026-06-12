@@ -16,13 +16,22 @@ function percent(value?: number | null) {
       <span>第 {{ match.match_no }} 场</span>
       <span>{{ match.group_name }}</span>
     </div>
+
     <h3>{{ match.home_team_zh }} vs {{ match.away_team_zh }}</h3>
+
+    <div v-if="match.completed" class="result-banner">
+      <strong>{{ match.actual_home_score }} - {{ match.actual_away_score }}</strong>
+      <span>已完赛</span>
+    </div>
+
     <p class="venue">{{ match.date_bj }} {{ match.time_bj }} · {{ match.venue_city }}</p>
+
     <div class="prob-grid">
       <span>主胜 {{ percent(match.home_win_probability) }}</span>
       <span>平局 {{ percent(match.draw_probability) }}</span>
       <span>客胜 {{ percent(match.away_win_probability) }}</span>
     </div>
+
     <footer>
       <span>Top 比分：{{ match.top_scoreline ?? '暂无' }}</span>
       <span>{{ percent(match.top_scoreline_probability) }}</span>
@@ -72,6 +81,27 @@ h3 {
 .venue {
   margin: 0;
   color: var(--color-muted);
+}
+
+.result-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(30, 107, 72, 0.1);
+  color: rgb(24, 90, 62);
+}
+
+.result-banner strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.result-banner span {
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .prob-grid {
