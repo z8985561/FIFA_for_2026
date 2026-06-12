@@ -1,4 +1,5 @@
 import type {
+  DataQualityRow,
   GroupAdvanceRow,
   HealthResponse,
   MatchDetail,
@@ -42,6 +43,7 @@ export const dashboardApi = {
     const suffix = query.toString() ? `?${query.toString()}` : ''
     return request<ScheduleMatch[]>(`/api/schedule${suffix}`)
   },
+  dataQuality: () => request<DataQualityRow[]>('/api/data-quality'),
   matches: (limit?: number) => {
     const query = limit ? `?limit=${limit}` : ''
     return request<MatchSummary[]>(`/api/matches${query}`)

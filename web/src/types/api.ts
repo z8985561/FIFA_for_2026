@@ -54,6 +54,27 @@ export interface ScheduleMatch {
   neutral: boolean
 }
 
+export interface DataQualityRow {
+  match_no: number
+  stage: string
+  group_name?: string | null
+  home_team: string
+  away_team: string
+  home_team_zh: string
+  away_team_zh: string
+  has_fixture: boolean
+  has_prediction: boolean
+  has_scoreline_model: boolean
+  has_score_odds: boolean
+  has_market_odds: boolean
+  has_lineup_adjustment: boolean
+  latest_score_odds_fetched_at?: string | null
+  latest_market_fetched_at?: string | null
+  completeness_score: number
+  completeness_level: 'High' | 'Medium' | 'Low'
+  missing_items: string[]
+}
+
 export interface FactorBreakdown {
   factor: string
   home_delta_goals?: number | null
