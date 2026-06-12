@@ -178,7 +178,10 @@ class DashboardDataStore:
             rows = rows[rows["group_name"].eq(group_name)]
         rows = rows.sort_values(["date_et", "time_et", "match_no"], na_position="last")
         result_lookup = self._official_results_by_match()
-        return [self._schedule_match(row, result_lookup=result_lookup) for _, row in rows.iterrows()]
+        return [
+            self._schedule_match(row, result_lookup=result_lookup)
+            for _, row in rows.iterrows()
+        ]
 
     def list_data_quality(self) -> list[DataQualityRow]:
         if self.fixtures.empty:
