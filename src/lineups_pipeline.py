@@ -17,6 +17,22 @@ TEAM_NAME_ZH = {
     "Bosnia and Herzegovina": "波黑",
     "United States": "美国",
     "Paraguay": "巴拉圭",
+    "Qatar": "卡塔尔",
+    "Switzerland": "瑞士",
+    "Brazil": "巴西",
+    "Morocco": "摩洛哥",
+    "Haiti": "海地",
+    "Scotland": "苏格兰",
+    "Australia": "澳大利亚",
+    "Turkey": "土耳其",
+    "Germany": "德国",
+    "Curaçao": "库拉索",
+    "Ivory Coast": "科特迪瓦",
+    "Ecuador": "厄瓜多尔",
+    "Netherlands": "荷兰",
+    "Japan": "日本",
+    "Tunisia": "突尼斯",
+    "Sweden": "瑞典",
 }
 
 PREDICTED_LINEUP_SEEDS = [
@@ -238,6 +254,452 @@ PREDICTED_LINEUP_SEEDS = [
             ("MF", "Diego Gomez"),
             ("MF", "Miguel Almiron"),
             ("FW", "Antonio Sanabria"),
+        ],
+    },
+    {
+        "match_no": 8,
+        "match_date": "2026-06-14",
+        "group_name": "Group B",
+        "home_team": "Qatar",
+        "away_team": "Switzerland",
+        "team_name": "Qatar",
+        "formation": "4-3-3",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/qatar/world-cup-2026/"
+            "predicted-lineups/afif-to-lead-the-charge-how-qatar-could-line-up-"
+            "against-switzerland_598998.html"
+        ),
+        "players": [
+            ("GK", "Abunada"),
+            ("DF", "Al-Oui"),
+            ("DF", "Khoukhi"),
+            ("DF", "Pedro Miguel"),
+            ("DF", "Ahmed"),
+            ("MF", "Laye"),
+            ("MF", "Fathi"),
+            ("MF", "Gaber"),
+            ("FW", "Abdurisag"),
+            ("FW", "Afif"),
+            ("FW", "Edmilson"),
+        ],
+    },
+    {
+        "match_no": 8,
+        "match_date": "2026-06-14",
+        "group_name": "Group B",
+        "home_team": "Qatar",
+        "away_team": "Switzerland",
+        "team_name": "Switzerland",
+        "formation": "4-2-3-1",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/switzerland/world-cup-2026/"
+            "predicted-lineups/the-old-guard-how-switzerland-could-line-up-"
+            "against-qatar_598999.html"
+        ),
+        "players": [
+            ("GK", "Kobel"),
+            ("DF", "Widmer"),
+            ("DF", "Akanji"),
+            ("DF", "Elvedi"),
+            ("DF", "Rodriguez"),
+            ("MF", "Xhaka"),
+            ("MF", "Freuler"),
+            ("MF", "Vargas"),
+            ("MF", "Rieder"),
+            ("MF", "Ndoye"),
+            ("FW", "Amdouni"),
+        ],
+    },
+    {
+        "match_no": 13,
+        "match_date": "2026-06-14",
+        "group_name": "Group C",
+        "home_team": "Brazil",
+        "away_team": "Morocco",
+        "team_name": "Brazil",
+        "formation": "4-2-3-1",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/brazil/world-cup-2026/"
+            "predicted-lineups/right-back-dilemma-for-ancelotti-predicted-brazil-"
+            "lineup-vs-morocco_598949.html"
+        ),
+        "players": [
+            ("GK", "Alisson"),
+            ("DF", "Danilo"),
+            ("DF", "Marquinhos"),
+            ("DF", "Gabriel"),
+            ("DF", "Sandro"),
+            ("MF", "Casemiro"),
+            ("MF", "Guimaraes"),
+            ("MF", "Raphinha"),
+            ("MF", "Paqueta"),
+            ("MF", "Vinicius Jr"),
+            ("FW", "Cunha"),
+        ],
+    },
+    {
+        "match_no": 13,
+        "match_date": "2026-06-14",
+        "group_name": "Group C",
+        "home_team": "Brazil",
+        "away_team": "Morocco",
+        "team_name": "Morocco",
+        "formation": "4-3-3",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/morocco/world-cup-2026/"
+            "predicted-lineups/enforced-changes-after-double-injury-blow-"
+            "predicted-morocco-lineup-vs-brazil_598950.html"
+        ),
+        "players": [
+            ("GK", "Bounou"),
+            ("DF", "Hakimi"),
+            ("DF", "Diop"),
+            ("DF", "Riad"),
+            ("DF", "Mazraoui"),
+            ("MF", "Amrabat"),
+            ("MF", "El Aynaoui"),
+            ("MF", "Ounahi"),
+            ("FW", "Diaz"),
+            ("FW", "Saibari"),
+            ("FW", "El Khannouss"),
+        ],
+    },
+    {
+        "match_no": 14,
+        "match_date": "2026-06-14",
+        "group_name": "Group C",
+        "home_team": "Haiti",
+        "away_team": "Scotland",
+        "team_name": "Haiti",
+        "formation": "4-4-2",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/haiti/world-cup-2026/"
+            "predicted-lineups/one-sunderland-one-wolves-predicted-haiti-lineup-"
+            "vs-scotland_598954.html"
+        ),
+        "players": [
+            ("GK", "Placide"),
+            ("DF", "Arcus"),
+            ("DF", "Ade"),
+            ("DF", "Delcroix"),
+            ("DF", "Experience"),
+            ("MF", "Deedson"),
+            ("MF", "Jean Jacques"),
+            ("MF", "Bellegarde"),
+            ("MF", "Providence"),
+            ("FW", "Isidor"),
+            ("FW", "Nazon"),
+        ],
+    },
+    {
+        "match_no": 14,
+        "match_date": "2026-06-14",
+        "group_name": "Group C",
+        "home_team": "Haiti",
+        "away_team": "Scotland",
+        "team_name": "Scotland",
+        "formation": "4-4-2",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/scotland/world-cup-2026/"
+            "predicted-lineups/mctominay-decision-gunn-or-gordon-in-goal-"
+            "predicted-scotland-lineup-vs-haiti_598955.html"
+        ),
+        "players": [
+            ("GK", "Gunn"),
+            ("DF", "Hickey"),
+            ("DF", "Hanley"),
+            ("DF", "Souttar"),
+            ("DF", "Robertson"),
+            ("MF", "Doak"),
+            ("MF", "McTominay"),
+            ("MF", "Ferguson"),
+            ("MF", "McGinn"),
+            ("FW", "Adams"),
+            ("FW", "Shankland"),
+        ],
+    },
+    {
+        "match_no": 20,
+        "match_date": "2026-06-13",
+        "group_name": "Group D",
+        "home_team": "Australia",
+        "away_team": "Turkey",
+        "team_name": "Australia",
+        "formation": "5-4-1",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/australia/world-cup-2026/"
+            "predicted-lineups/will-toure-leckie-start-how-australia-could-line-up-"
+            "against-turkey_599008.html"
+        ),
+        "players": [
+            ("GK", "Ryan"),
+            ("DF", "Italiano"),
+            ("DF", "Circati"),
+            ("DF", "Souttar"),
+            ("DF", "Herrington"),
+            ("DF", "Bos"),
+            ("MF", "Metcalfe"),
+            ("MF", "Irvine"),
+            ("MF", "O'Neill"),
+            ("MF", "Leckie"),
+            ("FW", "Toure"),
+        ],
+    },
+    {
+        "match_no": 20,
+        "match_date": "2026-06-13",
+        "group_name": "Group D",
+        "home_team": "Australia",
+        "away_team": "Turkey",
+        "team_name": "Turkey",
+        "formation": "4-2-3-1",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/australia/world-cup-2026/"
+            "predicted-lineups/will-yildiz-be-involved-how-turkey-could-line-up-"
+            "against-australia_599009.html"
+        ),
+        "players": [
+            ("GK", "Cakir"),
+            ("DF", "Celik"),
+            ("DF", "Demiral"),
+            ("DF", "Bardakci"),
+            ("DF", "Elmali"),
+            ("MF", "Calhanoglu"),
+            ("MF", "Yuksek"),
+            ("MF", "Guler"),
+            ("MF", "Kokcu"),
+            ("MF", "Yilmaz"),
+            ("FW", "Gul"),
+        ],
+    },
+    {
+        "match_no": 25,
+        "match_date": "2026-06-15",
+        "group_name": "Group E",
+        "home_team": "Germany",
+        "away_team": "Curaçao",
+        "team_name": "Germany",
+        "formation": "4-2-3-1",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/germany/world-cup-2026/"
+            "predicted-lineups/neuers-return-how-germany-could-line-up-against-"
+            "curacao_599049.html"
+        ),
+        "players": [
+            ("GK", "Neuer"),
+            ("DF", "Kimmich"),
+            ("DF", "Tah"),
+            ("DF", "Schlotterbeck"),
+            ("DF", "Brown"),
+            ("MF", "F Nmecha"),
+            ("MF", "Pavlovic"),
+            ("MF", "Sane"),
+            ("MF", "Musiala"),
+            ("MF", "Wirtz"),
+            ("FW", "Havertz"),
+        ],
+    },
+    {
+        "match_no": 25,
+        "match_date": "2026-06-15",
+        "group_name": "Group E",
+        "home_team": "Germany",
+        "away_team": "Curaçao",
+        "team_name": "Curaçao",
+        "formation": "4-3-3",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/germany/world-cup-2026/"
+            "predicted-lineups/bacuna-brothers-to-start-how-curacao-could-line-up-"
+            "against-germany_599048.html"
+        ),
+        "players": [
+            ("GK", "Room"),
+            ("DF", "Sambo"),
+            ("DF", "Obispo"),
+            ("DF", "Gaari"),
+            ("DF", "Floranus"),
+            ("MF", "Comenencia"),
+            ("MF", "J Bacuna"),
+            ("MF", "L Bacuna"),
+            ("FW", "Chong"),
+            ("FW", "Gorre"),
+            ("FW", "Antonisse"),
+        ],
+    },
+    {
+        "match_no": 26,
+        "match_date": "2026-06-15",
+        "group_name": "Group E",
+        "home_team": "Ivory Coast",
+        "away_team": "Ecuador",
+        "team_name": "Ivory Coast",
+        "formation": "4-3-3",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/ivory-coast/world-cup-2026/"
+            "predicted-lineups/winger-dilemma-for-fae-predicted-ivory-coast-lineup-"
+            "vs-ecuador_599037.html"
+        ),
+        "players": [
+            ("GK", "Y. Fofana"),
+            ("DF", "Doue"),
+            ("DF", "Agbadou"),
+            ("DF", "Kossounou"),
+            ("DF", "Konan"),
+            ("MF", "Kessie"),
+            ("MF", "Sangare"),
+            ("MF", "S. Fofana"),
+            ("FW", "Diallo"),
+            ("FW", "Guessand"),
+            ("FW", "Diomande"),
+        ],
+    },
+    {
+        "match_no": 26,
+        "match_date": "2026-06-15",
+        "group_name": "Group E",
+        "home_team": "Ivory Coast",
+        "away_team": "Ecuador",
+        "team_name": "Ecuador",
+        "formation": "4-2-3-1",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/ecuador/world-cup-2026/"
+            "predicted-lineups/valencia-decision-for-la-tri-predicted-ecuador-"
+            "lineup-vs-ivory-coast_599039.html"
+        ),
+        "players": [
+            ("GK", "Galindez"),
+            ("DF", "Ordonez"),
+            ("DF", "Pacho"),
+            ("DF", "Hincapie"),
+            ("DF", "Estupinan"),
+            ("MF", "Caicedo"),
+            ("MF", "Vite"),
+            ("MF", "Yeboah"),
+            ("MF", "Plata"),
+            ("MF", "Angulo"),
+            ("FW", "Valencia"),
+        ],
+    },
+    {
+        "match_no": 31,
+        "match_date": "2026-06-15",
+        "group_name": "Group F",
+        "home_team": "Netherlands",
+        "away_team": "Japan",
+        "team_name": "Netherlands",
+        "formation": "4-2-3-1",
+        "source_name": "Squawka",
+        "source_url": (
+            "https://www.squawka.com/en/news/netherlands-vs-japan-team-news-"
+            "predicted-lineups/"
+        ),
+        "players": [
+            ("GK", "Verbruggen"),
+            ("DF", "Dumfries"),
+            ("DF", "van Hecke"),
+            ("DF", "van Dijk"),
+            ("DF", "van de Ven"),
+            ("MF", "de Jong"),
+            ("MF", "Gravenberch"),
+            ("MF", "Summerville"),
+            ("MF", "Reijnders"),
+            ("MF", "Gakpo"),
+            ("FW", "Depay"),
+        ],
+    },
+    {
+        "match_no": 31,
+        "match_date": "2026-06-15",
+        "group_name": "Group F",
+        "home_team": "Netherlands",
+        "away_team": "Japan",
+        "team_name": "Japan",
+        "formation": "3-4-2-1",
+        "source_name": "Squawka",
+        "source_url": (
+            "https://www.squawka.com/en/news/netherlands-vs-japan-team-news-"
+            "predicted-lineups/"
+        ),
+        "players": [
+            ("GK", "Suzuki"),
+            ("DF", "Tomiyasu"),
+            ("DF", "Itakura"),
+            ("DF", "Watanabe"),
+            ("MF", "Doan"),
+            ("MF", "Kamada"),
+            ("MF", "Tanaka"),
+            ("MF", "Nakamura"),
+            ("MF", "Kubo"),
+            ("MF", "J Ito"),
+            ("FW", "Ueda"),
+        ],
+    },
+    {
+        "match_no": 32,
+        "match_date": "2026-06-15",
+        "group_name": "Group F",
+        "home_team": "Tunisia",
+        "away_team": "Sweden",
+        "team_name": "Tunisia",
+        "formation": "4-2-3-1",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/tunisia/world-cup-2026/"
+            "predicted-lineups/hope-for-hannibal-predicted-tunisia-xi-vs-sweden_"
+            "599050.html"
+        ),
+        "players": [
+            ("GK", "Chamakh"),
+            ("DF", "Valery"),
+            ("DF", "Rekik"),
+            ("DF", "Talbi"),
+            ("DF", "Ali Abdi"),
+            ("MF", "Skhiri"),
+            ("MF", "Khedira"),
+            ("MF", "Achouri"),
+            ("MF", "Hannibal"),
+            ("MF", "Gharbi"),
+            ("FW", "Chaouat"),
+        ],
+    },
+    {
+        "match_no": 32,
+        "match_date": "2026-06-15",
+        "group_name": "Group F",
+        "home_team": "Tunisia",
+        "away_team": "Sweden",
+        "team_name": "Sweden",
+        "formation": "3-4-1-2",
+        "source_name": "Sports Mole",
+        "source_url": (
+            "https://www.sportsmole.co.uk/football/sweden/world-cup-2026/"
+            "predicted-lineups/the-sickness-bug-strikes-predicted-sweden-xi-vs-"
+            "tunisia_599046.html"
+        ),
+        "players": [
+            ("GK", "Nordfeldt"),
+            ("DF", "Hien"),
+            ("DF", "Lindelof"),
+            ("DF", "Lagerbielke"),
+            ("MF", "Bernhardsson"),
+            ("MF", "Karlstrom"),
+            ("MF", "Ayari"),
+            ("MF", "Gudmundsson"),
+            ("MF", "Nygren"),
+            ("FW", "Gyokeres"),
+            ("FW", "Isak"),
         ],
     },
 ]
