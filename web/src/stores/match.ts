@@ -9,7 +9,17 @@ export const useMatchStore = defineStore('match', () => {
   const loading = shallowRef(false)
   const error = shallowRef<string | null>(null)
 
-  const firstFourMatches = computed(() => matches.value.slice(0, 4))
+  const firstFourMatches = computed(() => {
+    const upcoming = matches.value.filter((match) => !match.completed)
+    // 优先展示尚未结束的最新四场。
+    if (upcoming.length >= 4) {
+      return upcoming.slice(0, 4)
+    }
+    // 未结束的不足四场时（赛事接近尾声），用最近已结束的比赛按时间顺序补齐，避免首页空缺。
+    const finished = matches.value.filter((match) => match.completed)
+    const fill = finished.slice(-(4 - upcoming.length))
+    return [...fill, ...upcoming]
+  })
 
   async function loadMatches() {
     loading.value = true
