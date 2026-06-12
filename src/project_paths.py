@@ -26,6 +26,8 @@ WORLD_CUP_TEAMS_2026_PATH = PROCESSED_DATA_DIR / "world_cup_teams_2026.parquet"
 OFFICIAL_MATCH_RESULTS_2026_PATH = PROCESSED_DATA_DIR / "official_match_results_2026.parquet"
 TEAM_GOAL_FORM_FEATURES_PATH = PROCESSED_DATA_DIR / "team_goal_form_features.parquet"
 PREDICTED_LINEUPS_PATH = PROCESSED_DATA_DIR / "predicted_lineups.parquet"
+WANGYI_COACHES_2026_PATH = PROCESSED_DATA_DIR / "wangyi_coaches_2026.parquet"
+WANGYI_SQUAD_STATS_2026_PATH = PROCESSED_DATA_DIR / "wangyi_squad_stats_2026.parquet"
 MARKET_ODDS_SNAPSHOTS_PATH = PROCESSED_DATA_DIR / "market_odds_snapshots.parquet"
 HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH = (
     PROCESSED_DATA_DIR / "historical_market_odds_snapshots.parquet"

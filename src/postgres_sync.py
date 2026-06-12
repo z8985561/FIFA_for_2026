@@ -44,6 +44,8 @@ from .project_paths import (
     SQUADS_2026_PATH,
     TEAM_GOAL_FORM_FEATURES_PATH,
     TEAMS_PATH,
+    WANGYI_COACHES_2026_PATH,
+    WANGYI_SQUAD_STATS_2026_PATH,
     WORLD_CUP_TEAMS_2026_PATH,
 )
 from .score_odds_pipeline import prepare_score_odds_features
@@ -374,6 +376,32 @@ SCORELINE_VALUE_BET_COLUMNS = [
     "latest_fetched_at",
 ]
 
+WANGYI_COACHES_COLUMNS = [
+    "team_id",
+    "team_name",
+    "manager_name_zh",
+    "manager_name_en",
+    "manager_id",
+    "fetched_at",
+]
+
+WANGYI_SQUAD_STATS_COLUMNS = [
+    "team_id",
+    "team_name",
+    "position",
+    "player_id",
+    "name_zh",
+    "name_en",
+    "shirt_no",
+    "age",
+    "goals",
+    "assists",
+    "yellow_cards",
+    "red_cards",
+    "is_suspended",
+    "fetched_at",
+]
+
 
 POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
     "matches": [
@@ -537,6 +565,8 @@ POSTGRES_TABLE_COLUMNS: dict[str, list[str]] = {
     "enhanced_predictions": ENHANCED_PREDICTION_COLUMNS,
     "scoreline_analysis": SCORELINE_ANALYSIS_COLUMNS,
     "scoreline_value_bets": SCORELINE_VALUE_BET_COLUMNS,
+    "wangyi_coaches_2026": WANGYI_COACHES_COLUMNS,
+    "wangyi_squad_stats_2026": WANGYI_SQUAD_STATS_COLUMNS,
 }
 
 MANAGED_POSTGRES_TABLES = tuple(POSTGRES_TABLE_COLUMNS)
@@ -676,6 +706,8 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
     enhanced_predictions_table = qualified_table(schema, "enhanced_predictions")
     scoreline_analysis_table = qualified_table(schema, "scoreline_analysis")
     scoreline_value_bets_table = qualified_table(schema, "scoreline_value_bets")
+    wangyi_coaches_table = qualified_table(schema, "wangyi_coaches_2026")
+    wangyi_squad_stats_table = qualified_table(schema, "wangyi_squad_stats_2026")
     quoted_schema = quote_identifier(schema)
     historical_feature_columns_sql = ",\n            ".join(
         f"{quote_identifier(column)} DOUBLE PRECISION NOT NULL"
@@ -1423,6 +1455,43 @@ def postgres_schema_sql(schema: str) -> tuple[str, ...]:
         CREATE INDEX IF NOT EXISTS idx_scoreline_value_bets_signal
         ON {scoreline_value_bets_table} (value_signal)
         """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {wangyi_coaches_table} (
+            team_id BIGINT PRIMARY KEY,
+            team_name TEXT NOT NULL,
+            manager_name_zh TEXT,
+            manager_name_en TEXT,
+            manager_id BIGINT,
+            fetched_at TIMESTAMPTZ
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {wangyi_squad_stats_table} (
+            team_id BIGINT NOT NULL,
+            team_name TEXT NOT NULL,
+            position TEXT NOT NULL,
+            player_id BIGINT NOT NULL,
+            name_zh TEXT,
+            name_en TEXT,
+            shirt_no TEXT,
+            age INTEGER,
+            goals INTEGER NOT NULL DEFAULT 0,
+            assists INTEGER NOT NULL DEFAULT 0,
+            yellow_cards INTEGER NOT NULL DEFAULT 0,
+            red_cards INTEGER NOT NULL DEFAULT 0,
+            is_suspended BOOLEAN NOT NULL DEFAULT FALSE,
+            fetched_at TIMESTAMPTZ,
+            PRIMARY KEY (team_id, player_id)
+        )
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_wangyi_squad_stats_suspended
+        ON {wangyi_squad_stats_table} (is_suspended)
+        """,
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_wangyi_squad_stats_team
+        ON {wangyi_squad_stats_table} (team_id)
+        """,
     )
 
 
@@ -1568,6 +1637,8 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         "enhanced_predictions": read_enhanced_predictions_frame(),
         "scoreline_analysis": read_optional_csv(SCORELINE_ANALYSIS_PATH),
         "scoreline_value_bets": read_scoreline_value_bets_frame(),
+        "wangyi_coaches_2026": read_optional_parquet(WANGYI_COACHES_2026_PATH),
+        "wangyi_squad_stats_2026": read_optional_parquet(WANGYI_SQUAD_STATS_2026_PATH),
     }
 
 
@@ -1614,6 +1685,78 @@ def copy_table(
         with cursor.copy(copy_sql) as copy:
             copy.write(buffer.read())
     connection.commit()
+
+
+def sync_wangyi_tables(config: PostgresConfig | None = None) -> dict[str, int]:
+    """UPSERT 方式更新 wangyi_coaches_2026 和 wangyi_squad_stats_2026，不影响其他表。"""
+    config = config or load_postgres_config()
+    coaches_df = read_optional_parquet(WANGYI_COACHES_2026_PATH)
+    squads_df = read_optional_parquet(WANGYI_SQUAD_STATS_2026_PATH)
+
+    connection = psycopg.connect(
+        host=config.host,
+        port=config.port,
+        dbname=config.dbname,
+        user=config.user,
+        password=config.password,
+    )
+    try:
+        schema = config.schema
+        # 确保表结构存在（幂等）
+        ddl_statements = postgres_schema_sql(schema)
+        with connection.cursor() as cursor:
+            cursor.execute(ddl_statements[0])  # CREATE SCHEMA IF NOT EXISTS
+        coaches_table = qualified_table(schema, "wangyi_coaches_2026")
+        squads_table = qualified_table(schema, "wangyi_squad_stats_2026")
+
+        # 找到新表 DDL（包含 wangyi）并执行
+        for stmt in ddl_statements[1:]:
+            if "wangyi" in stmt:
+                with connection.cursor() as cursor:
+                    cursor.execute(stmt)
+        connection.commit()
+
+        counts: dict[str, int] = {}
+
+        if not coaches_df.empty:
+            cols = WANGYI_COACHES_COLUMNS
+            available = [c for c in cols if c in coaches_df.columns]
+            with connection.cursor() as cursor:
+                cursor.execute(f"TRUNCATE TABLE {coaches_table}")
+            buffer = dataframe_to_copy_buffer(coaches_df, available)
+            col_list = ", ".join(quote_identifier(c) for c in available)
+            with connection.cursor() as cursor:
+                with cursor.copy(
+                    f"COPY {coaches_table} ({col_list}) FROM STDIN WITH (FORMAT CSV, NULL '\\N')"
+                ) as copy:
+                    copy.write(buffer.read())
+            connection.commit()
+
+        if not squads_df.empty:
+            cols = WANGYI_SQUAD_STATS_COLUMNS
+            available = [c for c in cols if c in squads_df.columns]
+            with connection.cursor() as cursor:
+                cursor.execute(f"TRUNCATE TABLE {squads_table}")
+            buffer = dataframe_to_copy_buffer(squads_df, available)
+            col_list = ", ".join(quote_identifier(c) for c in available)
+            with connection.cursor() as cursor:
+                with cursor.copy(
+                    f"COPY {squads_table} ({col_list}) FROM STDIN WITH (FORMAT CSV, NULL '\\N')"
+                ) as copy:
+                    copy.write(buffer.read())
+            connection.commit()
+
+        for table, tname in [
+            ("wangyi_coaches_2026", coaches_table),
+            ("wangyi_squad_stats_2026", squads_table),
+        ]:
+            with connection.cursor() as cursor:
+                cursor.execute(f"SELECT COUNT(*) FROM {tname}")
+                counts[table] = int(cursor.fetchone()[0])
+        connection.commit()
+        return counts
+    finally:
+        connection.close()
 
 
 def sync_to_postgres(config: PostgresConfig | None = None) -> dict[str, int]:
