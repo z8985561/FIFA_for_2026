@@ -12,6 +12,7 @@ from .schemas import (
     GroupAdvanceRow,
     HealthResponse,
     MatchDetail,
+    MatchReviewRow,
     MatchSummary,
     MetadataResponse,
     ScheduleMatch,
@@ -110,6 +111,15 @@ def list_value_scorelines(
     sort_by: str = "edge",
 ) -> list[ScorelineRow]:
     return store.list_scorelines(limit=limit, signal=signal, sort_by=sort_by)
+
+
+@app.get("/api/reviews/matches", response_model=list[MatchReviewRow])
+def list_match_reviews(
+    store: Annotated[DashboardDataStore, Depends(get_store)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    review_bucket: str | None = None,
+) -> list[MatchReviewRow]:
+    return store.list_match_reviews(limit=limit, review_bucket=review_bucket)
 
 
 @app.get("/api/groups/advance", response_model=list[GroupAdvanceRow])

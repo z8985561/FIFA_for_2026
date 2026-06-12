@@ -2,10 +2,11 @@
 import { onMounted } from 'vue'
 
 import DataSnapshotBar from '@/components/common/DataSnapshotBar.vue'
+import StatCard from '@/components/common/StatCard.vue'
 import HomeCompletenessSummary from '@/components/home/HomeCompletenessSummary.vue'
+import RecentResultsReview from '@/components/home/RecentResultsReview.vue'
 import MatchCard from '@/components/match/MatchCard.vue'
 import ScorelineTable from '@/components/match/ScorelineTable.vue'
-import StatCard from '@/components/common/StatCard.vue'
 import { useAsyncState } from '@/composables/useAsyncState'
 import { dashboardApi } from '@/services/api'
 import { useMatchStore } from '@/stores/match'
@@ -28,10 +29,8 @@ onMounted(() => {
   <section class="page-stack">
     <header class="hero">
       <span class="eyebrow">Research Dashboard MVP</span>
-      <h1>用模型、赔率和解释链路拆解 2026 世界杯前四场。</h1>
-      <p>
-        当前版本只做研究分析和虚拟组合模拟，所有概率均来自本地模型产物与已入库赔率快照。
-      </p>
+      <h1>用模型、赔率和解释链路拆解 2026 世界杯重点比赛。</h1>
+      <p>当前版本聚焦研究分析与赛后复盘，所有概率均来自本地模型产物与已入库赔率快照。</p>
     </header>
 
     <DataSnapshotBar />
@@ -73,6 +72,14 @@ onMounted(() => {
           :match="match"
         />
       </div>
+    </section>
+
+    <section class="section-card">
+      <div class="section-title">
+        <h2>最新赛果复盘</h2>
+        <span>在首页快速查看预测与真实结果的偏差</span>
+      </div>
+      <RecentResultsReview :matches="matchStore.recentCompletedMatches" />
     </section>
 
     <section class="section-card">

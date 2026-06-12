@@ -45,6 +45,7 @@ MATCH_ODDS_FEATURES_PATH = FEATURE_DATA_DIR / "match_odds_features.parquet"
 HISTORICAL_MATCH_ODDS_FEATURES_PATH = FEATURE_DATA_DIR / "historical_match_odds_features.parquet"
 SPORTTERY_MATCH_ODDS_FEATURES_PATH = FEATURE_DATA_DIR / "sporttery_match_odds_features.parquet"
 SCORE_ODDS_FEATURES_PATH = FEATURE_DATA_DIR / "score_odds_features.parquet"
+MATCH_REVIEW_FEATURES_PATH = FEATURE_DATA_DIR / "match_review_features.parquet"
 DATABASE_PATH = PROCESSED_DATA_DIR / "fifa_research.duckdb"
 
 BASELINE_METRICS_PATH = REPORTS_DIR / "baseline_metrics.json"

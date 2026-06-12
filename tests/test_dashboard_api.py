@@ -5,7 +5,7 @@ from api.main import app
 
 def test_health_loads_dashboard_data() -> None:
     with TestClient(app) as client:
-      response = client.get("/api/health")
+        response = client.get("/api/health")
 
     assert response.status_code == 200
     payload = response.json()
@@ -15,7 +15,7 @@ def test_health_loads_dashboard_data() -> None:
 
 def test_metadata_exposes_snapshot_times_and_compliance_note() -> None:
     with TestClient(app) as client:
-      response = client.get("/api/metadata")
+        response = client.get("/api/metadata")
 
     assert response.status_code == 200
     payload = response.json()
@@ -26,7 +26,7 @@ def test_metadata_exposes_snapshot_times_and_compliance_note() -> None:
 
 def test_matches_return_chinese_team_names() -> None:
     with TestClient(app) as client:
-      response = client.get("/api/matches?limit=2")
+        response = client.get("/api/matches?limit=2")
 
     assert response.status_code == 200
     matches = response.json()
@@ -36,7 +36,7 @@ def test_matches_return_chinese_team_names() -> None:
 
 def test_schedule_returns_full_fixture_list_with_knockout_placeholders() -> None:
     with TestClient(app) as client:
-      response = client.get("/api/schedule")
+        response = client.get("/api/schedule")
 
     assert response.status_code == 200
     rows = response.json()
@@ -51,7 +51,7 @@ def test_schedule_returns_full_fixture_list_with_knockout_placeholders() -> None
 
 def test_data_quality_returns_high_quality_seeded_match_and_low_quality_final() -> None:
     with TestClient(app) as client:
-      response = client.get("/api/data-quality")
+        response = client.get("/api/data-quality")
 
     assert response.status_code == 200
     rows = response.json()
@@ -73,7 +73,7 @@ def test_data_quality_returns_high_quality_seeded_match_and_low_quality_final() 
 
 def test_match_scorelines_include_value_fields() -> None:
     with TestClient(app) as client:
-      response = client.get("/api/matches/1/scorelines?limit=3")
+        response = client.get("/api/matches/1/scorelines?limit=3")
 
     assert response.status_code == 200
     rows = response.json()
@@ -83,9 +83,27 @@ def test_match_scorelines_include_value_fields() -> None:
     assert rows[0]["away_team_zh"] == "南非"
 
 
+def test_match_reviews_expose_review_rows() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/reviews/matches?limit=2")
+
+    assert response.status_code == 200
+    rows = response.json()
+    assert len(rows) >= 2
+    assert rows[0]["match_no"] >= rows[1]["match_no"]
+    assert rows[0]["review_bucket"] in {
+        "exact_hit",
+        "outcome_hit_only",
+        "upset_miss",
+        "outcome_miss",
+    }
+    assert "actual_scoreline" in rows[0]
+    assert "outcome_hit" in rows[0]
+
+
 def test_group_advance_repairs_chinese_names_and_live_standings() -> None:
     with TestClient(app) as client:
-      response = client.get("/api/groups/advance?group_name=Group A")
+        response = client.get("/api/groups/advance?group_name=Group A")
 
     assert response.status_code == 200
     rows = response.json()
@@ -117,7 +135,7 @@ def test_simulator_settles_two_by_one() -> None:
         ],
     }
     with TestClient(app) as client:
-      response = client.post("/api/simulator/settle", json=request)
+        response = client.post("/api/simulator/settle", json=request)
 
     assert response.status_code == 200
     payload = response.json()

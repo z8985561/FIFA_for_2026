@@ -96,6 +96,33 @@ class MatchDetail(BaseModel):
     factor_breakdown: list[dict[str, float | str | bool | None]]
 
 
+class MatchReviewRow(BaseModel):
+    match_no: int
+    stage: str | None = None
+    group_name: str | None = None
+    home_team: str
+    away_team: str
+    home_team_zh: str
+    away_team_zh: str
+    predicted_outcome: str | None = None
+    actual_outcome: str | None = None
+    top_scoreline: str | None = None
+    actual_scoreline: str | None = None
+    expected_home_goals: float | None = None
+    expected_away_goals: float | None = None
+    expected_total_goals: float | None = None
+    actual_total_goals: int | None = None
+    outcome_hit: bool = False
+    scoreline_hit: bool = False
+    total_goals_error: float | None = None
+    actual_outcome_probability: float | None = None
+    predicted_home_win_probability: float | None = None
+    predicted_draw_probability: float | None = None
+    predicted_away_win_probability: float | None = None
+    review_bucket: str
+    result_source_name: str | None = None
+
+
 class ScorelineRow(BaseModel):
     match_no: int
     stage: str | None = None

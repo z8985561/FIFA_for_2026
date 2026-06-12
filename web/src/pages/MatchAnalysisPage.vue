@@ -13,6 +13,12 @@ import { dashboardApi } from '@/services/api'
 import { useMatchStore } from '@/stores/match'
 import type { DataQualityRow, MatchDetail, ScorelineRow } from '@/types/api'
 
+interface BiasInsight {
+  title: string
+  verdict: string
+  description: string
+}
+
 const route = useRoute()
 const router = useRouter()
 const matchStore = useMatchStore()
@@ -21,6 +27,7 @@ const dataQuality = useAsyncState<DataQualityRow[]>()
 const scorelines = useAsyncState<ScorelineRow[]>()
 
 const matchNo = computed(() => Number(route.params.matchNo ?? 1))
+
 const matchTitle = computed(() => {
   const match = detail.data.value?.match
   return match ? `${match.home_team_zh} vs ${match.away_team_zh}` : '比赛分析'
@@ -31,6 +38,7 @@ const currentQuality = computed(() => {
 })
 
 const topScoreline = computed(() => scorelines.data.value?.[0] ?? null)
+
 const actualScoreline = computed(() => {
   const match = detail.data.value?.match
   if (!match?.completed) {
@@ -42,34 +50,29 @@ const actualScoreline = computed(() => {
   return `${match.actual_home_score}-${match.actual_away_score}`
 })
 
-const predictedOutcomeLabel = computed(() => {
-  const outcome = detail.data.value?.match.predicted_outcome
-  if (outcome === 'home_win') {
-    return '主胜'
-  }
-  if (outcome === 'draw') {
-    return '平局'
-  }
-  if (outcome === 'away_win') {
-    return '客胜'
-  }
-  return '暂无'
-})
-
-const outcomeHitLabel = computed(() => {
+const actualOutcomeKey = computed(() => {
   const match = detail.data.value?.match
   if (!match?.completed || match.actual_home_score == null || match.actual_away_score == null) {
+    return null
+  }
+  if (match.actual_home_score > match.actual_away_score) {
+    return 'home_win'
+  }
+  if (match.actual_home_score < match.actual_away_score) {
+    return 'away_win'
+  }
+  return 'draw'
+})
+
+const predictedOutcomeLabel = computed(() => outcomeLabel(detail.data.value?.match.predicted_outcome))
+const actualOutcomeLabel = computed(() => outcomeLabel(actualOutcomeKey.value))
+
+const outcomeHitLabel = computed(() => {
+  const predicted = detail.data.value?.match.predicted_outcome
+  const actual = actualOutcomeKey.value
+  if (!predicted || !actual) {
     return '待赛果'
   }
-
-  const predicted = match.predicted_outcome
-  const actual =
-    match.actual_home_score > match.actual_away_score
-      ? 'home_win'
-      : match.actual_home_score < match.actual_away_score
-        ? 'away_win'
-        : 'draw'
-
   return predicted === actual ? '命中' : '未命中'
 })
 
@@ -79,6 +82,109 @@ const exactScoreHitLabel = computed(() => {
   }
   return topScoreline.value.scoreline === actualScoreline.value ? '命中' : '未命中'
 })
+
+const expectedTotalGoals = computed(() => {
+  const expected = detail.data.value?.expected_goals
+  if (!expected) {
+    return null
+  }
+  const home = expected.home_final ?? expected.home_raw
+  const away = expected.away_final ?? expected.away_raw
+  if (home == null || away == null) {
+    return null
+  }
+  return home + away
+})
+
+const actualTotalGoals = computed(() => {
+  const match = detail.data.value?.match
+  if (!match?.completed || match.actual_home_score == null || match.actual_away_score == null) {
+    return null
+  }
+  return match.actual_home_score + match.actual_away_score
+})
+
+const biasInsights = computed<BiasInsight[]>(() => {
+  const match = detail.data.value?.match
+  if (!match?.completed || match.actual_home_score == null || match.actual_away_score == null) {
+    return []
+  }
+
+  const insights: BiasInsight[] = []
+  const predictedOutcome = match.predicted_outcome
+  const actualOutcome = actualOutcomeKey.value
+
+  if (predictedOutcome && actualOutcome) {
+    insights.push({
+      title: '胜平负判断',
+      verdict: predictedOutcome === actualOutcome ? '方向命中' : '方向偏离',
+      description:
+        predictedOutcome === actualOutcome
+          ? `模型判断为${outcomeLabel(predictedOutcome)}，真实赛果同样为${outcomeLabel(actualOutcome)}。`
+          : `模型判断为${outcomeLabel(predictedOutcome)}，但真实赛果为${outcomeLabel(actualOutcome)}，说明比赛方向判断出现偏差。`,
+    })
+  }
+
+  if (topScoreline.value && actualScoreline.value) {
+    insights.push({
+      title: '精确比分',
+      verdict: topScoreline.value.scoreline === actualScoreline.value ? '比分命中' : '比分偏离',
+      description:
+        topScoreline.value.scoreline === actualScoreline.value
+          ? `模型最高概率比分是 ${topScoreline.value.scoreline}，与真实比分完全一致。`
+          : `模型最高概率比分是 ${topScoreline.value.scoreline}，真实比分为 ${actualScoreline.value}，精确比分没有命中。`,
+    })
+  }
+
+  if (expectedTotalGoals.value != null && actualTotalGoals.value != null) {
+    const delta = actualTotalGoals.value - expectedTotalGoals.value
+    const verdict =
+      Math.abs(delta) < 0.35
+        ? '进球节奏接近预期'
+        : delta > 0
+          ? '比赛比预期更开放'
+          : '比赛比预期更保守'
+
+    insights.push({
+      title: '总进球节奏',
+      verdict,
+      description: `模型预期总进球约 ${expectedTotalGoals.value.toFixed(2)}，实际总进球为 ${actualTotalGoals.value}，偏差 ${delta >= 0 ? '+' : ''}${delta.toFixed(2)}。`,
+    })
+  }
+
+  const matchProbabilities = detail.data.value?.outcome_probabilities
+  if (matchProbabilities && actualOutcome) {
+    const predictedProb =
+      actualOutcome === 'home_win'
+        ? matchProbabilities.home_win
+        : actualOutcome === 'draw'
+          ? matchProbabilities.draw
+          : matchProbabilities.away_win
+
+    if (predictedProb != null) {
+      insights.push({
+        title: '真实结果置信度',
+        verdict: predictedProb >= 0.45 ? '模型对真实结果有一定覆盖' : '模型低估了真实结果',
+        description: `模型给真实结果方向的赛前概率是 ${(predictedProb * 100).toFixed(1)}%。这个数值越低，说明赛前越难从基础模型中直接看出真实走向。`,
+      })
+    }
+  }
+
+  return insights
+})
+
+function outcomeLabel(value?: string | null) {
+  if (value === 'home_win') {
+    return '主胜'
+  }
+  if (value === 'draw') {
+    return '平局'
+  }
+  if (value === 'away_win') {
+    return '客胜'
+  }
+  return '暂无'
+}
 
 function percent(value?: number | null) {
   return value == null ? '暂无' : `${(value * 100).toFixed(1)}%`
@@ -155,6 +261,29 @@ watch(matchNo, loadPage)
       </div>
     </section>
 
+    <section v-if="detail.data.value && detail.data.value.match.completed && biasInsights.length" class="section-card">
+      <div class="section-title">
+        <h2>预测偏差拆解</h2>
+        <span>白盒解释模型偏差来自哪里</span>
+      </div>
+
+      <div class="insight-grid">
+        <article v-for="insight in biasInsights" :key="insight.title" class="insight-card">
+          <div class="insight-head">
+            <span class="insight-title">{{ insight.title }}</span>
+            <strong>{{ insight.verdict }}</strong>
+          </div>
+          <p>{{ insight.description }}</p>
+        </article>
+      </div>
+
+      <div class="summary-strip">
+        <span>真实赛果方向：{{ actualOutcomeLabel }}</span>
+        <span>模型预期总进球：{{ expectedTotalGoals == null ? '暂无' : expectedTotalGoals.toFixed(2) }}</span>
+        <span>实际总进球：{{ actualTotalGoals ?? '暂无' }}</span>
+      </div>
+    </section>
+
     <MatchCompletenessCard :quality="currentQuality" />
 
     <section v-if="detail.data.value" class="section-card">
@@ -177,13 +306,15 @@ watch(matchNo, loadPage)
 </template>
 
 <style scoped>
-.compare-grid {
+.compare-grid,
+.insight-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
-.compare-card {
+.compare-card,
+.insight-card {
   display: grid;
   gap: 10px;
   padding: 18px;
@@ -192,7 +323,8 @@ watch(matchNo, loadPage)
   background: rgba(255, 255, 255, 0.72);
 }
 
-.compare-label {
+.compare-label,
+.insight-title {
   color: var(--color-muted);
   font-size: 13px;
 }
@@ -207,8 +339,35 @@ watch(matchNo, loadPage)
   font-size: 13px;
 }
 
+.insight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.insight-head strong {
+  font-size: 15px;
+}
+
+.insight-card p {
+  margin: 0;
+  color: var(--color-ink);
+  line-height: 1.6;
+}
+
+.summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
 @media (max-width: 900px) {
-  .compare-grid {
+  .compare-grid,
+  .insight-grid {
     grid-template-columns: 1fr;
   }
 }

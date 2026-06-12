@@ -8,10 +8,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.match_review_pipeline import build_match_review_features
 from src.project_paths import (
     ENHANCED_PREDICTIONS_PATH,
     FIXTURES_PATH,
     MATCH_FEATURE_STORE_2026_PATH,
+    MATCH_REVIEW_FEATURES_PATH,
     OFFICIAL_MATCH_RESULTS_2026_PATH,
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_VALUE_BETS_PATH,
@@ -22,6 +24,7 @@ from .schemas import (
     DataQualityRow,
     GroupAdvanceRow,
     MatchDetail,
+    MatchReviewRow,
     MatchSummary,
     MetadataResponse,
     ScheduleMatch,
@@ -107,9 +110,13 @@ class DashboardDataStore:
     tournament: pd.DataFrame
     match_features: pd.DataFrame
     official_results: pd.DataFrame
+    match_reviews: pd.DataFrame
 
     @classmethod
     def load(cls) -> DashboardDataStore:
+        match_reviews = _read_table(MATCH_REVIEW_FEATURES_PATH)
+        if match_reviews.empty:
+            match_reviews = build_match_review_features()
         return cls(
             fixtures=_read_table(FIXTURES_PATH),
             enhanced=_read_table(ENHANCED_PREDICTIONS_PATH),
@@ -119,6 +126,7 @@ class DashboardDataStore:
             tournament=_read_table(TOURNAMENT_SIMULATION_PATH),
             match_features=_read_table(MATCH_FEATURE_STORE_2026_PATH),
             official_results=_read_table(OFFICIAL_MATCH_RESULTS_2026_PATH),
+            match_reviews=match_reviews,
         )
 
     def row_counts(self) -> dict[str, int]:
@@ -131,6 +139,7 @@ class DashboardDataStore:
             "tournament_simulation": len(self.tournament),
             "match_features": len(self.match_features),
             "official_results": len(self.official_results),
+            "match_reviews": len(self.match_reviews),
         }
 
     def metadata(self) -> MetadataResponse:
@@ -287,6 +296,22 @@ class DashboardDataStore:
             rows = rows.sort_values(["match_no", "scoreline_rank"], na_position="last")
         rows = rows.head(limit)
         return [self._scoreline_row(row) for _, row in rows.iterrows()]
+
+    def list_match_reviews(
+        self,
+        *,
+        limit: int | None = None,
+        review_bucket: str | None = None,
+    ) -> list[MatchReviewRow]:
+        rows = self.match_reviews.copy()
+        if rows.empty:
+            return []
+        if review_bucket:
+            rows = rows[rows["review_bucket"].eq(review_bucket)]
+        rows = rows.sort_values(["match_no"], ascending=[False])
+        if limit is not None:
+            rows = rows.head(limit)
+        return [self._match_review_row(row) for _, row in rows.iterrows()]
 
     def list_group_advance(self, *, group_name: str | None = None) -> list[GroupAdvanceRow]:
         rows = self.groups.copy()
@@ -506,6 +531,36 @@ class DashboardDataStore:
             actual_home_score=_as_int(row, "actual_home_score"),
             actual_away_score=_as_int(row, "actual_away_score"),
             completed=_as_bool(row, "completed"),
+            result_source_name=_as_str(row, "result_source_name"),
+        )
+
+    def _match_review_row(self, row: pd.Series) -> MatchReviewRow:
+        home_team = _as_str(row, "home_team") or "TBD"
+        away_team = _as_str(row, "away_team") or "TBD"
+        return MatchReviewRow(
+            match_no=int(row.match_no),
+            stage=_as_str(row, "stage"),
+            group_name=_as_str(row, "group_name"),
+            home_team=home_team,
+            away_team=away_team,
+            home_team_zh=_as_str(row, "home_team_zh") or zh_team_name(home_team) or home_team,
+            away_team_zh=_as_str(row, "away_team_zh") or zh_team_name(away_team) or away_team,
+            predicted_outcome=_as_str(row, "predicted_outcome"),
+            actual_outcome=_as_str(row, "actual_outcome"),
+            top_scoreline=_as_str(row, "top_scoreline"),
+            actual_scoreline=_as_str(row, "actual_scoreline"),
+            expected_home_goals=_as_float(row, "expected_home_goals"),
+            expected_away_goals=_as_float(row, "expected_away_goals"),
+            expected_total_goals=_as_float(row, "expected_total_goals"),
+            actual_total_goals=_as_int(row, "actual_total_goals"),
+            outcome_hit=_as_bool(row, "outcome_hit"),
+            scoreline_hit=_as_bool(row, "scoreline_hit"),
+            total_goals_error=_as_float(row, "total_goals_error"),
+            actual_outcome_probability=_as_float(row, "actual_outcome_probability"),
+            predicted_home_win_probability=_as_float(row, "predicted_home_win_probability"),
+            predicted_draw_probability=_as_float(row, "predicted_draw_probability"),
+            predicted_away_win_probability=_as_float(row, "predicted_away_win_probability"),
+            review_bucket=_as_str(row, "review_bucket") or "unknown",
             result_source_name=_as_str(row, "result_source_name"),
         )
 

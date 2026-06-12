@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -24,10 +25,27 @@ class ValueBetsReportOutputs:
     positive_edge_rows: int
 
 
+def _covered_match_count(path: Path, *, reader: str) -> int:
+    if not path.exists():
+        return 0
+    try:
+        if reader == "csv":
+            frame = pd.read_csv(path, usecols=["match_no"])
+        elif reader == "parquet":
+            frame = pd.read_parquet(path, columns=["match_no"])
+        else:
+            raise ValueError(f"unsupported reader: {reader}")
+    except (FileNotFoundError, ValueError, KeyError):
+        return 0
+    if "match_no" not in frame.columns or frame.empty:
+        return 0
+    return int(frame["match_no"].nunique())
+
+
 def ensure_value_report_inputs(*, match_limit: int) -> None:
-    if not SCORELINE_ANALYSIS_PATH.exists():
+    if _covered_match_count(SCORELINE_ANALYSIS_PATH, reader="csv") < match_limit:
         prepare_scoreline_analysis(limit=match_limit)
-    if not SCORE_ODDS_FEATURES_PATH.exists():
+    if _covered_match_count(SCORE_ODDS_FEATURES_PATH, reader="parquet") < match_limit:
         prepare_score_odds_features(match_limit=match_limit)
 
 
@@ -129,7 +147,7 @@ def build_scoreline_value_bets(
 
 def prepare_value_bets_report(
     *,
-    match_limit: int = 4,
+    match_limit: int = 72,
     output_path=SCORELINE_VALUE_BETS_PATH,
 ) -> ValueBetsReportOutputs:
     ensure_project_directories()
@@ -152,7 +170,7 @@ def prepare_value_bets_report(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build exact-score value-bet report.")
-    parser.add_argument("--limit", type=int, default=4)
+    parser.add_argument("--limit", type=int, default=72)
     return parser
 
 
