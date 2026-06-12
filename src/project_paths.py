@@ -8,6 +8,7 @@ FEATURE_DATA_DIR = DATA_DIR / "features"
 REPORTS_DIR = ROOT_DIR / "reports"
 RAW_IDENTITY_DIR = RAW_DATA_DIR / "identity"
 RAW_ODDS_DIR = RAW_DATA_DIR / "odds"
+RAW_RESULTS_DIR = RAW_DATA_DIR / "results"
 RAW_HISTORICAL_ODDS_DIR = RAW_ODDS_DIR / "historical"
 
 RAW_HISTORY_PATH = RAW_DATA_DIR / "international_results.csv"
@@ -22,6 +23,7 @@ FIXTURES_PATH = PROCESSED_DATA_DIR / "fixtures_2026.parquet"
 FIFA_RANKINGS_PATH = PROCESSED_DATA_DIR / "fifa_rankings_2026.parquet"
 SQUADS_2026_PATH = PROCESSED_DATA_DIR / "squads_2026.parquet"
 WORLD_CUP_TEAMS_2026_PATH = PROCESSED_DATA_DIR / "world_cup_teams_2026.parquet"
+OFFICIAL_MATCH_RESULTS_2026_PATH = PROCESSED_DATA_DIR / "official_match_results_2026.parquet"
 TEAM_GOAL_FORM_FEATURES_PATH = PROCESSED_DATA_DIR / "team_goal_form_features.parquet"
 PREDICTED_LINEUPS_PATH = PROCESSED_DATA_DIR / "predicted_lineups.parquet"
 MARKET_ODDS_SNAPSHOTS_PATH = PROCESSED_DATA_DIR / "market_odds_snapshots.parquet"
@@ -68,6 +70,7 @@ def ensure_project_directories() -> None:
         RAW_DATA_DIR,
         RAW_IDENTITY_DIR,
         RAW_ODDS_DIR,
+        RAW_RESULTS_DIR,
         RAW_HISTORICAL_ODDS_DIR,
         PROCESSED_DATA_DIR,
         FEATURE_DATA_DIR,

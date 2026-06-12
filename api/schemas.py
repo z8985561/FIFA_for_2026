@@ -39,6 +39,10 @@ class MatchSummary(BaseModel):
     latest_fetched_at: str | None = None
     top_scoreline: str | None = None
     top_scoreline_probability: float | None = None
+    actual_home_score: int | None = None
+    actual_away_score: int | None = None
+    completed: bool = False
+    result_source_name: str | None = None
 
 
 class ScheduleMatch(BaseModel):
@@ -57,6 +61,10 @@ class ScheduleMatch(BaseModel):
     city: str | None = None
     venue_city: str | None = None
     neutral: bool = True
+    actual_home_score: int | None = None
+    actual_away_score: int | None = None
+    completed: bool = False
+    result_source_name: str | None = None
 
 
 class DataQualityRow(BaseModel):
@@ -118,6 +126,15 @@ class GroupAdvanceRow(BaseModel):
     group_name: str
     team_name: str
     team_name_zh: str
+    standing_rank: int
+    played: int
+    wins: int
+    draws: int
+    losses: int
+    goals_for: int
+    goals_against: int
+    goal_difference: int
+    points: int
     group_winner_probability: float
     group_runner_up_probability: float
     top2_probability: float

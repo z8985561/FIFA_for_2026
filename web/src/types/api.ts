@@ -34,6 +34,10 @@ export interface MatchSummary {
   latest_fetched_at?: string | null
   top_scoreline?: string | null
   top_scoreline_probability?: number | null
+  actual_home_score?: number | null
+  actual_away_score?: number | null
+  completed: boolean
+  result_source_name?: string | null
 }
 
 export interface ScheduleMatch {
@@ -52,6 +56,10 @@ export interface ScheduleMatch {
   city?: string | null
   venue_city?: string | null
   neutral: boolean
+  actual_home_score?: number | null
+  actual_away_score?: number | null
+  completed: boolean
+  result_source_name?: string | null
 }
 
 export interface DataQualityRow {
@@ -121,6 +129,15 @@ export interface GroupAdvanceRow {
   group_name: string
   team_name: string
   team_name_zh: string
+  standing_rank: number
+  played: number
+  wins: number
+  draws: number
+  losses: number
+  goals_for: number
+  goals_against: number
+  goal_difference: number
+  points: number
   group_winner_probability: number
   group_runner_up_probability: number
   top2_probability: number

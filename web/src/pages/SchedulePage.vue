@@ -202,14 +202,21 @@ onMounted(() => {
                 <p>{{ match.venue_city }}</p>
               </div>
 
-              <RouterLink
-                v-if="match.stage === 'Group Stage' && match.match_no <= 72"
-                :to="`/matches/${match.match_no}`"
-                class="analysis-link"
-              >
-                查看分析
-              </RouterLink>
-              <span v-else class="muted">对阵待定</span>
+              <div class="match-side">
+                <div v-if="match.completed" class="score-result">
+                  <strong>{{ match.actual_home_score }} - {{ match.actual_away_score }}</strong>
+                  <span class="muted">已完赛</span>
+                </div>
+
+                <RouterLink
+                  v-if="match.stage === 'Group Stage' && match.match_no <= 72"
+                  :to="`/matches/${match.match_no}`"
+                  class="analysis-link"
+                >
+                  查看分析
+                </RouterLink>
+                <span v-else-if="!match.completed" class="muted">对阵待定</span>
+              </div>
             </article>
           </div>
         </article>
@@ -322,8 +329,24 @@ onMounted(() => {
   margin: 0;
 }
 
+.match-side {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.score-result {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.score-result strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
 .analysis-link {
-  justify-self: end;
   color: var(--color-danger);
   font-weight: 800;
   text-decoration: none;
@@ -334,8 +357,11 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .analysis-link {
+  .match-side,
+  .analysis-link,
+  .score-result {
     justify-self: start;
+    justify-items: start;
   }
 }
 

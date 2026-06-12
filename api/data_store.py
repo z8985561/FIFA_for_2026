@@ -12,6 +12,7 @@ from src.project_paths import (
     ENHANCED_PREDICTIONS_PATH,
     FIXTURES_PATH,
     MATCH_FEATURE_STORE_2026_PATH,
+    OFFICIAL_MATCH_RESULTS_2026_PATH,
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_VALUE_BETS_PATH,
     TOURNAMENT_SIMULATION_PATH,
@@ -72,11 +73,28 @@ def _as_str(row: pd.Series, column: str) -> str | None:
     return None if value is None else str(value)
 
 
+def _as_int(row: pd.Series, column: str) -> int | None:
+    if column not in row:
+        return None
+    value = _clean(row[column])
+    return None if value is None else int(value)
+
+
 def _as_bool(row: pd.Series, column: str) -> bool:
     if column not in row:
         return False
     value = _clean(row[column])
     return bool(value) if value is not None else False
+
+
+def _as_int_dict(values: dict[str, Any], key: str) -> int | None:
+    value = _clean(values.get(key))
+    return None if value is None else int(value)
+
+
+def _text_dict(values: dict[str, Any], key: str) -> str | None:
+    value = _clean(values.get(key))
+    return None if value is None else str(value)
 
 
 @dataclass
@@ -88,6 +106,7 @@ class DashboardDataStore:
     groups: pd.DataFrame
     tournament: pd.DataFrame
     match_features: pd.DataFrame
+    official_results: pd.DataFrame
 
     @classmethod
     def load(cls) -> DashboardDataStore:
@@ -99,6 +118,7 @@ class DashboardDataStore:
             groups=_read_table(GROUP_ADVANCE_PATH),
             tournament=_read_table(TOURNAMENT_SIMULATION_PATH),
             match_features=_read_table(MATCH_FEATURE_STORE_2026_PATH),
+            official_results=_read_table(OFFICIAL_MATCH_RESULTS_2026_PATH),
         )
 
     def row_counts(self) -> dict[str, int]:
@@ -110,6 +130,7 @@ class DashboardDataStore:
             "group_advance": len(self.groups),
             "tournament_simulation": len(self.tournament),
             "match_features": len(self.match_features),
+            "official_results": len(self.official_results),
         }
 
     def metadata(self) -> MetadataResponse:
@@ -156,7 +177,8 @@ class DashboardDataStore:
         if group_name:
             rows = rows[rows["group_name"].eq(group_name)]
         rows = rows.sort_values(["date_et", "time_et", "match_no"], na_position="last")
-        return [self._schedule_match(row) for _, row in rows.iterrows()]
+        result_lookup = self._official_results_by_match()
+        return [self._schedule_match(row, result_lookup=result_lookup) for _, row in rows.iterrows()]
 
     def list_data_quality(self) -> list[DataQualityRow]:
         if self.fixtures.empty:
@@ -267,18 +289,35 @@ class DashboardDataStore:
         rows = self.groups.copy()
         if rows.empty:
             return []
+        standings = self._group_live_standings()
+        if standings.empty:
+            standings = self._empty_group_live_standings(rows)
+        rows = rows.merge(
+            standings,
+            on=["group_name", "team_name"],
+            how="left",
+        )
         if group_name:
             rows = rows[rows["group_name"].eq(group_name)]
         rows["team_name_zh"] = rows["team_name"].map(zh_team_name)
         rows = rows.sort_values(
-            ["group_name", "group_advance_probability"],
-            ascending=[True, False],
+            ["group_name", "standing_rank", "group_advance_probability"],
+            ascending=[True, True, False],
         )
         return [
             GroupAdvanceRow(
                 group_name=str(row.group_name),
                 team_name=str(row.team_name),
                 team_name_zh=str(row.team_name_zh),
+                standing_rank=int(_clean(row.standing_rank) or 0),
+                played=int(_clean(row.played) or 0),
+                wins=int(_clean(row.wins) or 0),
+                draws=int(_clean(row.draws) or 0),
+                losses=int(_clean(row.losses) or 0),
+                goals_for=int(_clean(row.goals_for) or 0),
+                goals_against=int(_clean(row.goals_against) or 0),
+                goal_difference=int(_clean(row.goal_difference) or 0),
+                points=int(_clean(row.points) or 0),
                 group_winner_probability=float(row.group_winner_probability),
                 group_runner_up_probability=float(row.group_runner_up_probability),
                 top2_probability=float(row.top2_probability),
@@ -412,7 +451,26 @@ class DashboardDataStore:
             if not self.scorelines.empty
             else pd.DataFrame(columns=["match_no", "top_scoreline", "top_scoreline_probability"])
         )
-        return rows.merge(top_scorelines, on="match_no", how="left")
+        rows = rows.merge(top_scorelines, on="match_no", how="left")
+        if not self.official_results.empty:
+            official_columns = [
+                "match_no",
+                "home_score",
+                "away_score",
+                "completed",
+                "source_name",
+            ]
+            official_rows = self.official_results[
+                [column for column in official_columns if column in self.official_results.columns]
+            ].rename(
+                columns={
+                    "home_score": "actual_home_score",
+                    "away_score": "actual_away_score",
+                    "source_name": "result_source_name",
+                }
+            )
+            rows = rows.merge(official_rows, on="match_no", how="left")
+        return rows
 
     def _match_summary(self, row: pd.Series) -> MatchSummary:
         home_team = str(row.home_team)
@@ -442,11 +500,21 @@ class DashboardDataStore:
             latest_fetched_at=_as_str(row, "latest_fetched_at"),
             top_scoreline=_as_str(row, "top_scoreline"),
             top_scoreline_probability=_as_float(row, "top_scoreline_probability"),
+            actual_home_score=_as_int(row, "actual_home_score"),
+            actual_away_score=_as_int(row, "actual_away_score"),
+            completed=_as_bool(row, "completed"),
+            result_source_name=_as_str(row, "result_source_name"),
         )
 
-    def _schedule_match(self, row: pd.Series) -> ScheduleMatch:
+    def _schedule_match(
+        self,
+        row: pd.Series,
+        *,
+        result_lookup: dict[int, dict[str, Any]],
+    ) -> ScheduleMatch:
         home_team = _as_str(row, "home_team") or "TBD"
         away_team = _as_str(row, "away_team") or "TBD"
+        result = result_lookup.get(int(row.match_no), {})
         return ScheduleMatch(
             match_no=int(row.match_no),
             stage=_as_str(row, "stage") or "Unknown",
@@ -463,6 +531,10 @@ class DashboardDataStore:
             city=_as_str(row, "city"),
             venue_city=_as_str(row, "venue_city"),
             neutral=_as_bool(row, "neutral"),
+            actual_home_score=_as_int_dict(result, "home_score"),
+            actual_away_score=_as_int_dict(result, "away_score"),
+            completed=bool(result.get("completed", False)),
+            result_source_name=_text_dict(result, "source_name"),
         )
 
     def _data_quality_row(
@@ -542,6 +614,163 @@ class DashboardDataStore:
             .ne(0)
         )
         return set(rows.loc[has_status | has_adjustment, "match_no"].astype(int).tolist())
+
+    def _official_results_by_match(self) -> dict[int, dict[str, Any]]:
+        if self.official_results.empty or "match_no" not in self.official_results.columns:
+            return {}
+        rows = self.official_results.dropna(subset=["match_no"]).copy()
+        rows = rows.sort_values(["match_no", "fetched_at"], na_position="last")
+        latest = rows.groupby("match_no", as_index=False, sort=False).tail(1)
+        return {
+            int(row.match_no): row.to_dict()
+            for _, row in latest.iterrows()
+        }
+
+    def _group_live_standings(self) -> pd.DataFrame:
+        if self.fixtures.empty:
+            return pd.DataFrame()
+
+        fixtures = self.fixtures.copy()
+        fixtures = fixtures.loc[fixtures["stage"].eq("Group Stage")].copy()
+        if fixtures.empty:
+            return pd.DataFrame()
+
+        team_rows = []
+        for fixture in fixtures.itertuples(index=False):
+            team_rows.append(
+                {
+                    "group_name": str(fixture.group_name),
+                    "team_name": str(fixture.home_team),
+                }
+            )
+            team_rows.append(
+                {
+                    "group_name": str(fixture.group_name),
+                    "team_name": str(fixture.away_team),
+                }
+            )
+        standings = pd.DataFrame(team_rows).drop_duplicates().reset_index(drop=True)
+        for column in [
+            "played",
+            "wins",
+            "draws",
+            "losses",
+            "goals_for",
+            "goals_against",
+            "goal_difference",
+            "points",
+        ]:
+            standings[column] = 0
+
+        if self.official_results.empty:
+            standings["standing_rank"] = standings.groupby("group_name").cumcount() + 1
+            return standings
+
+        completed = self.official_results.copy()
+        completed = completed.loc[completed.get("completed", False).fillna(False)].copy()
+        if completed.empty:
+            standings["standing_rank"] = standings.groupby("group_name").cumcount() + 1
+            return standings
+
+        results = fixtures.merge(
+            completed[
+                [
+                    "match_no",
+                    "home_team",
+                    "away_team",
+                    "home_score",
+                    "away_score",
+                    "completed",
+                ]
+            ],
+            on="match_no",
+            how="inner",
+            suffixes=("_fixture", "_result"),
+        )
+        if results.empty:
+            standings["standing_rank"] = standings.groupby("group_name").cumcount() + 1
+            return standings
+
+        for row in results.itertuples(index=False):
+            home_team = str(row.home_team_fixture)
+            away_team = str(row.away_team_fixture)
+            home_score = int(row.home_score)
+            away_score = int(row.away_score)
+            group_name = str(row.group_name)
+            self._apply_group_match_result(
+                standings,
+                group_name=group_name,
+                home_team=home_team,
+                away_team=away_team,
+                home_score=home_score,
+                away_score=away_score,
+            )
+
+        standings["goal_difference"] = standings["goals_for"] - standings["goals_against"]
+        standings = standings.sort_values(
+            [
+                "group_name",
+                "points",
+                "goal_difference",
+                "goals_for",
+                "team_name",
+            ],
+            ascending=[True, False, False, False, True],
+        ).reset_index(drop=True)
+        standings["standing_rank"] = standings.groupby("group_name").cumcount() + 1
+        return standings
+
+    @staticmethod
+    def _apply_group_match_result(
+        standings: pd.DataFrame,
+        *,
+        group_name: str,
+        home_team: str,
+        away_team: str,
+        home_score: int,
+        away_score: int,
+    ) -> None:
+        home_mask = standings["group_name"].eq(group_name) & standings["team_name"].eq(home_team)
+        away_mask = standings["group_name"].eq(group_name) & standings["team_name"].eq(away_team)
+
+        standings.loc[home_mask, "played"] += 1
+        standings.loc[away_mask, "played"] += 1
+        standings.loc[home_mask, "goals_for"] += home_score
+        standings.loc[home_mask, "goals_against"] += away_score
+        standings.loc[away_mask, "goals_for"] += away_score
+        standings.loc[away_mask, "goals_against"] += home_score
+
+        if home_score > away_score:
+            standings.loc[home_mask, "wins"] += 1
+            standings.loc[home_mask, "points"] += 3
+            standings.loc[away_mask, "losses"] += 1
+        elif home_score < away_score:
+            standings.loc[away_mask, "wins"] += 1
+            standings.loc[away_mask, "points"] += 3
+            standings.loc[home_mask, "losses"] += 1
+        else:
+            standings.loc[home_mask, "draws"] += 1
+            standings.loc[away_mask, "draws"] += 1
+            standings.loc[home_mask, "points"] += 1
+            standings.loc[away_mask, "points"] += 1
+
+    @staticmethod
+    def _empty_group_live_standings(group_rows: pd.DataFrame) -> pd.DataFrame:
+        standings = group_rows[["group_name", "team_name"]].drop_duplicates().copy()
+        standings = standings.sort_values(["group_name", "team_name"]).reset_index(drop=True)
+        for column in [
+            "played",
+            "wins",
+            "draws",
+            "losses",
+            "goals_for",
+            "goals_against",
+            "goal_difference",
+            "points",
+        ]:
+            standings[column] = 0
+        standings["standing_rank"] = standings.groupby("group_name").cumcount() + 1
+        return standings
 
     @staticmethod
     def _latest_by_match(rows: pd.DataFrame, column: str) -> dict[int, str]:
