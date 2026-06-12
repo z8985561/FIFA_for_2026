@@ -94,6 +94,33 @@ function formatDateTitle(date: string, count: number) {
   return `${label} · ${count}场`
 }
 
+function outcomeText(outcome: string | null | undefined) {
+  if (outcome === 'home_win') return '主胜'
+  if (outcome === 'draw') return '平局'
+  if (outcome === 'away_win') return '客胜'
+  return '—'
+}
+
+function predOutcomeClass(match: ScheduleMatch) {
+  if (!match.predicted_outcome) return ''
+  if (match.completed) {
+    const actual =
+      match.actual_home_score != null && match.actual_away_score != null
+        ? match.actual_home_score > match.actual_away_score
+          ? 'home_win'
+          : match.actual_home_score < match.actual_away_score
+            ? 'away_win'
+            : 'draw'
+        : null
+    return actual === match.predicted_outcome ? 'pred-hit' : 'pred-miss'
+  }
+  return 'pred-pending'
+}
+
+function pct(v: number | null | undefined) {
+  return v == null ? '—' : `${(v * 100).toFixed(0)}%`
+}
+
 function loadSchedule() {
   schedule.run(() =>
     dashboardApi.schedule({
@@ -208,8 +235,27 @@ onMounted(() => {
                   <span class="muted">已完赛</span>
                 </div>
 
+                <div v-if="match.predicted_outcome" class="prediction-block">
+                  <div class="pred-outcome">
+                    <span class="pred-label">预测</span>
+                    <span class="pred-value" :class="predOutcomeClass(match)">{{ outcomeText(match.predicted_outcome) }}</span>
+                  </div>
+                  <div class="pred-probs">
+                    <span title="主胜">{{ pct(match.home_win_probability) }}</span>
+                    <span class="prob-sep">/</span>
+                    <span title="平局">{{ pct(match.draw_probability) }}</span>
+                    <span class="prob-sep">/</span>
+                    <span title="客胜">{{ pct(match.away_win_probability) }}</span>
+                  </div>
+                  <div v-if="match.top_scoreline" class="pred-scoreline">
+                    <span class="pred-label">Top比分</span>
+                    <span class="pred-score-val">{{ match.top_scoreline }}</span>
+                    <span class="muted">{{ pct(match.top_scoreline_probability) }}</span>
+                  </div>
+                </div>
+
                 <RouterLink
-                  v-if="match.stage === 'Group Stage' && match.match_no <= 72"
+                  v-if="match.stage === 'Group Stage'"
                   :to="`/matches/${match.match_no}`"
                   class="analysis-link"
                 >
@@ -280,7 +326,7 @@ onMounted(() => {
 
 .schedule-match {
   display: grid;
-  grid-template-columns: 120px 1fr 110px;
+  grid-template-columns: 120px 1fr 160px;
   gap: 18px;
   align-items: center;
   padding: 18px;
@@ -333,6 +379,7 @@ onMounted(() => {
   display: grid;
   justify-items: end;
   gap: 10px;
+  min-width: 140px;
 }
 
 .score-result {
@@ -352,6 +399,55 @@ onMounted(() => {
   text-decoration: none;
 }
 
+.prediction-block {
+  display: grid;
+  gap: 4px;
+  text-align: right;
+}
+
+.pred-outcome {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.pred-label {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.pred-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pred-pending { color: var(--color-ink); }
+.pred-hit     { color: #16a34a; }
+.pred-miss    { color: #dc2626; }
+
+.pred-probs {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.prob-sep {
+  margin: 0 2px;
+}
+
+.pred-scoreline {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.pred-score-val {
+  font-weight: 700;
+  font-size: 13px;
+}
+
 @media (max-width: 900px) {
   .schedule-match {
     grid-template-columns: 1fr;
@@ -359,9 +455,16 @@ onMounted(() => {
 
   .match-side,
   .analysis-link,
-  .score-result {
+  .score-result,
+  .prediction-block {
     justify-self: start;
     justify-items: start;
+    text-align: left;
+  }
+
+  .pred-outcome,
+  .pred-scoreline {
+    justify-content: flex-start;
   }
 }
 

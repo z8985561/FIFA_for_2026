@@ -69,6 +69,11 @@ def _as_float(row: pd.Series, column: str) -> float | None:
     return None if value is None else float(value)
 
 
+def _as_float_raw(value: Any) -> float | None:
+    value = _clean(value)
+    return None if value is None else float(value)
+
+
 def _as_str(row: pd.Series, column: str) -> str | None:
     if column not in row:
         return None
@@ -187,8 +192,15 @@ class DashboardDataStore:
             rows = rows[rows["group_name"].eq(group_name)]
         rows = rows.sort_values(["date_et", "time_et", "match_no"], na_position="last")
         result_lookup = self._official_results_by_match()
+        prediction_lookup = self._prediction_by_match()
+        top_scoreline_lookup = self._top_scoreline_by_match()
         return [
-            self._schedule_match(row, result_lookup=result_lookup)
+            self._schedule_match(
+                row,
+                result_lookup=result_lookup,
+                prediction_lookup=prediction_lookup,
+                top_scoreline_lookup=top_scoreline_lookup,
+            )
             for _, row in rows.iterrows()
         ]
 
@@ -564,17 +576,46 @@ class DashboardDataStore:
             result_source_name=_as_str(row, "result_source_name"),
         )
 
+    def _prediction_by_match(self) -> dict[int, dict[str, Any]]:
+        if self.enhanced.empty:
+            return {}
+        out: dict[int, dict[str, Any]] = {}
+        cols = ["match_no", "predicted_outcome", "home_win_probability", "draw_probability", "away_win_probability"]
+        available = [c for c in cols if c in self.enhanced.columns]
+        for _, row in self.enhanced[available].iterrows():
+            mn = int(row["match_no"])
+            out[mn] = {c: row.get(c) for c in available if c != "match_no"}
+        return out
+
+    def _top_scoreline_by_match(self) -> dict[int, dict[str, Any]]:
+        if self.scorelines.empty:
+            return {}
+        rank_col = "scoreline_rank" if "scoreline_rank" in self.scorelines.columns else None
+        prob_col = "scoreline_probability" if "scoreline_probability" in self.scorelines.columns else None
+        if not rank_col or not prob_col:
+            return {}
+        top = self.scorelines[self.scorelines[rank_col] == 1][["match_no", "scoreline", prob_col]]
+        return {
+            int(r["match_no"]): {"scoreline": r["scoreline"], "probability": r[prob_col]}
+            for _, r in top.iterrows()
+        }
+
     def _schedule_match(
         self,
         row: pd.Series,
         *,
         result_lookup: dict[int, dict[str, Any]],
+        prediction_lookup: dict[int, dict[str, Any]] | None = None,
+        top_scoreline_lookup: dict[int, dict[str, Any]] | None = None,
     ) -> ScheduleMatch:
         home_team = _as_str(row, "home_team") or "TBD"
         away_team = _as_str(row, "away_team") or "TBD"
-        result = result_lookup.get(int(row.match_no), {})
+        mn = int(row.match_no)
+        result = result_lookup.get(mn, {})
+        pred = (prediction_lookup or {}).get(mn, {})
+        top_sl = (top_scoreline_lookup or {}).get(mn, {})
         return ScheduleMatch(
-            match_no=int(row.match_no),
+            match_no=mn,
             stage=_as_str(row, "stage") or "Unknown",
             group_name=_as_str(row, "group_name"),
             date_et=_as_str(row, "date_et"),
@@ -593,6 +634,12 @@ class DashboardDataStore:
             actual_away_score=_as_int_dict(result, "away_score"),
             completed=bool(result.get("completed", False)),
             result_source_name=_text_dict(result, "source_name"),
+            predicted_outcome=pred.get("predicted_outcome") or None,
+            home_win_probability=_as_float_raw(pred.get("home_win_probability")),
+            draw_probability=_as_float_raw(pred.get("draw_probability")),
+            away_win_probability=_as_float_raw(pred.get("away_win_probability")),
+            top_scoreline=top_sl.get("scoreline") or None,
+            top_scoreline_probability=_as_float_raw(top_sl.get("probability")),
         )
 
     def _data_quality_row(

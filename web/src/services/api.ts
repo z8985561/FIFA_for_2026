@@ -3,6 +3,7 @@ import type {
   GroupAdvanceRow,
   HealthResponse,
   MatchDetail,
+  MatchReviewRow,
   MatchSummary,
   MetadataResponse,
   ScheduleMatch,
@@ -62,6 +63,11 @@ export const dashboardApi = {
     return request<ScorelineRow[]>(`/api/scorelines/value?${params.toString()}`)
   },
   groupAdvance: () => request<GroupAdvanceRow[]>('/api/groups/advance'),
+  matchReviews: (limit = 50, reviewBucket?: string) => {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (reviewBucket) params.set('review_bucket', reviewBucket)
+    return request<MatchReviewRow[]>(`/api/reviews/matches?${params.toString()}`)
+  },
   settleSimulator: (payload: {
     budget: number
     stake_per_combination: number

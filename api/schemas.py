@@ -65,6 +65,12 @@ class ScheduleMatch(BaseModel):
     actual_away_score: int | None = None
     completed: bool = False
     result_source_name: str | None = None
+    predicted_outcome: str | None = None
+    home_win_probability: float | None = None
+    draw_probability: float | None = None
+    away_win_probability: float | None = None
+    top_scoreline: str | None = None
+    top_scoreline_probability: float | None = None
 
 
 class DataQualityRow(BaseModel):

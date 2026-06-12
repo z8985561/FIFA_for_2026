@@ -60,6 +60,12 @@ export interface ScheduleMatch {
   actual_away_score?: number | null
   completed: boolean
   result_source_name?: string | null
+  predicted_outcome?: string | null
+  home_win_probability?: number | null
+  draw_probability?: number | null
+  away_win_probability?: number | null
+  top_scoreline?: string | null
+  top_scoreline_probability?: number | null
 }
 
 export interface DataQualityRow {
@@ -151,6 +157,15 @@ export interface SimulatorSelection {
   scoreline: string
 }
 
+export interface SimulatorCombination {
+  selections: SimulatorSelection[]
+  hit_probability: number
+  decimal_odds?: number | null
+  theoretical_payout?: number | null
+  expected_payout?: number | null
+  missing_odds: boolean
+}
+
 export interface SimulatorResponse {
   budget: number
   stake_per_combination: number
@@ -166,4 +181,32 @@ export interface SimulatorResponse {
   risk_score: number
   risk_rating: string
   risk_reasons: string[]
+  combinations: SimulatorCombination[]
+}
+
+export interface MatchReviewRow {
+  match_no: number
+  stage?: string | null
+  group_name?: string | null
+  home_team: string
+  away_team: string
+  home_team_zh: string
+  away_team_zh: string
+  predicted_outcome?: string | null
+  actual_outcome?: string | null
+  top_scoreline?: string | null
+  actual_scoreline?: string | null
+  expected_home_goals?: number | null
+  expected_away_goals?: number | null
+  expected_total_goals?: number | null
+  actual_total_goals?: number | null
+  outcome_hit: boolean
+  scoreline_hit: boolean
+  total_goals_error?: number | null
+  actual_outcome_probability?: number | null
+  predicted_home_win_probability?: number | null
+  predicted_draw_probability?: number | null
+  predicted_away_win_probability?: number | null
+  review_bucket: string
+  result_source_name?: string | null
 }

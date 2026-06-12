@@ -5,10 +5,12 @@ defineProps<{
   matches: readonly MatchSummary[]
   activeMatchNo: number
   loading?: boolean
+  tomorrowDate?: string
 }>()
 
 const emit = defineEmits<{
   select: [matchNo: number]
+  goSchedule: []
 }>()
 
 function percent(value?: number | null) {
@@ -20,13 +22,20 @@ function percent(value?: number | null) {
   <section class="switcher">
     <div class="switcher-head">
       <div>
-        <span class="eyebrow">Quick Switch</span>
-        <h2>前四场快速切换</h2>
+        <span class="eyebrow">Tomorrow's Matches</span>
+        <h2>明日赛事预览{{ tomorrowDate ? `（${tomorrowDate}）` : '' }}</h2>
       </div>
-      <span>{{ loading ? '加载中...' : `${matches.length} 场` }}</span>
+      <div class="switcher-head-right">
+        <span v-if="!loading && matches.length">{{ matches.length }} 场</span>
+        <button type="button" class="schedule-link" @click="emit('goSchedule')">完整赛程 →</button>
+      </div>
     </div>
 
-    <div class="switcher-grid">
+    <div v-if="loading" class="switcher-empty">加载中...</div>
+    <div v-else-if="!matches.length" class="switcher-empty">
+      明日（北京时间）暂无比赛安排
+    </div>
+    <div v-else class="switcher-grid">
       <button
         v-for="match in matches"
         :key="match.match_no"
@@ -45,6 +54,123 @@ function percent(value?: number | null) {
     </div>
   </section>
 </template>
+
+<style scoped>
+.switcher {
+  padding: 22px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-soft);
+}
+
+.switcher-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.switcher-head h2 {
+  margin: 6px 0 0;
+}
+
+.switcher-head-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.switcher-head-right > span {
+  color: var(--color-muted);
+}
+
+.schedule-link {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-danger);
+  border: 1px solid rgba(200, 88, 72, 0.4);
+  border-radius: var(--radius-md);
+  background: rgba(200, 88, 72, 0.06);
+  cursor: pointer;
+  transition: background 160ms ease;
+  white-space: nowrap;
+}
+
+.schedule-link:hover {
+  background: rgba(200, 88, 72, 0.14);
+}
+
+.switcher-empty {
+  padding: 20px 0;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.switcher-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.switcher-item {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+  color: var(--color-ink);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.58);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.switcher-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(200, 88, 72, 0.42);
+}
+
+.switcher-item.active {
+  color: #f8efe0;
+  border-color: rgba(22, 45, 54, 0.85);
+  background: linear-gradient(145deg, #17282d, #24454b);
+}
+
+.switcher-item span,
+.switcher-item small {
+  color: var(--color-muted);
+}
+
+.switcher-item.active span,
+.switcher-item.active small {
+  color: rgba(248, 239, 224, 0.72);
+}
+
+.switcher-item strong {
+  font-size: 18px;
+}
+
+@media (max-width: 1180px) {
+  .switcher-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .switcher-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
 
 <style scoped>
 .switcher {

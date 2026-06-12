@@ -24,6 +24,18 @@ export const useMatchStore = defineStore('match', () => {
     return [...fill, ...upcoming]
   })
 
+  // 返回明天北京日期的所有场次（取今天BJ时间+1天）
+  const tomorrowMatches = computed(() => {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }))
+    const tomorrow = new Date(now)
+    tomorrow.setDate(now.getDate() + 1)
+    const y = tomorrow.getFullYear()
+    const m = String(tomorrow.getMonth() + 1).padStart(2, '0')
+    const d = String(tomorrow.getDate()).padStart(2, '0')
+    const tomorrowStr = `${y}-${m}-${d}`
+    return matches.value.filter((match) => match.date_bj === tomorrowStr)
+  })
+
   async function loadMatches() {
     loading.value = true
     error.value = null
@@ -40,6 +52,7 @@ export const useMatchStore = defineStore('match', () => {
     matches,
     recentCompletedMatches,
     firstFourMatches,
+    tomorrowMatches,
     loading,
     error,
     loadMatches,

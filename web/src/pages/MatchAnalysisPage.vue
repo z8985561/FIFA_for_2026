@@ -28,6 +28,17 @@ const scorelines = useAsyncState<ScorelineRow[]>()
 
 const matchNo = computed(() => Number(route.params.matchNo ?? 1))
 
+// 明日北京日期字符串，用于 MatchSwitcher 标题
+const tomorrowDateStr = computed(() => {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }))
+  const tomorrow = new Date(now)
+  tomorrow.setDate(now.getDate() + 1)
+  const y = tomorrow.getFullYear()
+  const m = String(tomorrow.getMonth() + 1).padStart(2, '0')
+  const d = String(tomorrow.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+})
+
 const matchTitle = computed(() => {
   const match = detail.data.value?.match
   return match ? `${match.home_team_zh} vs ${match.away_team_zh}` : '比赛分析'
@@ -38,6 +49,12 @@ const currentQuality = computed(() => {
 })
 
 const topScoreline = computed(() => scorelines.data.value?.[0] ?? null)
+const top3Scorelines = computed(() => scorelines.data.value?.slice(0, 3) ?? [])
+
+const top3Hit = computed(() => {
+  if (!actualScoreline.value || top3Scorelines.value.length === 0) return false
+  return top3Scorelines.value.some((s) => s.scoreline === actualScoreline.value)
+})
 
 const actualScoreline = computed(() => {
   const match = detail.data.value?.match
@@ -77,10 +94,10 @@ const outcomeHitLabel = computed(() => {
 })
 
 const exactScoreHitLabel = computed(() => {
-  if (!actualScoreline.value || !topScoreline.value) {
+  if (!actualScoreline.value || top3Scorelines.value.length === 0) {
     return '待赛果'
   }
-  return topScoreline.value.scoreline === actualScoreline.value ? '命中' : '未命中'
+  return top3Hit.value ? '命中' : '未命中'
 })
 
 const expectedTotalGoals = computed(() => {
@@ -125,14 +142,14 @@ const biasInsights = computed<BiasInsight[]>(() => {
     })
   }
 
-  if (topScoreline.value && actualScoreline.value) {
+  if (top3Scorelines.value.length > 0 && actualScoreline.value) {
+    const top3List = top3Scorelines.value.map((s) => s.scoreline).join('、')
     insights.push({
       title: '精确比分',
-      verdict: topScoreline.value.scoreline === actualScoreline.value ? '比分命中' : '比分偏离',
-      description:
-        topScoreline.value.scoreline === actualScoreline.value
-          ? `模型最高概率比分是 ${topScoreline.value.scoreline}，与真实比分完全一致。`
-          : `模型最高概率比分是 ${topScoreline.value.scoreline}，真实比分为 ${actualScoreline.value}，精确比分没有命中。`,
+      verdict: top3Hit.value ? '比分命中' : '比分偏离',
+      description: top3Hit.value
+        ? `模型 Top 3 比分（${top3List}）中包含真实比分 ${actualScoreline.value}，预测命中。`
+        : `模型 Top 3 比分为 ${top3List}，真实比分为 ${actualScoreline.value}，精确比分未命中。`,
     })
   }
 
@@ -199,6 +216,10 @@ function selectMatch(nextMatchNo: number) {
   router.push(`/matches/${nextMatchNo}`)
 }
 
+function goSchedule() {
+  router.push('/schedule')
+}
+
 onMounted(() => {
   if (!matchStore.matches.length) {
     matchStore.loadMatches()
@@ -219,10 +240,12 @@ watch(matchNo, loadPage)
     </header>
 
     <MatchSwitcher
-      :matches="matchStore.firstFourMatches"
+      :matches="matchStore.tomorrowMatches"
       :active-match-no="matchNo"
       :loading="matchStore.loading"
+      :tomorrow-date="tomorrowDateStr"
       @select="selectMatch"
+      @go-schedule="goSchedule"
     />
 
     <ElAlert v-if="detail.error.value" :title="detail.error.value" type="error" show-icon />
@@ -249,8 +272,22 @@ watch(matchNo, loadPage)
 
         <article class="compare-card">
           <span class="compare-label">模型 Top 比分</span>
-          <strong>{{ topScoreline?.scoreline ?? '暂无' }}</strong>
-          <small>{{ exactScoreHitLabel }}</small>
+          <div class="top3-scores">
+            <span
+              v-for="(s, i) in top3Scorelines"
+              :key="s.scoreline"
+              class="top3-item"
+              :class="{
+                'top3-hit': actualScoreline && s.scoreline === actualScoreline,
+                'top3-miss': actualScoreline && s.scoreline !== actualScoreline,
+              }"
+            >
+              <em>{{ i + 1 }}</em>{{ s.scoreline }}
+              <small>{{ (s.model_probability * 100).toFixed(1) }}%</small>
+            </span>
+            <span v-if="top3Scorelines.length === 0" class="muted">暂无</span>
+          </div>
+          <small :class="top3Hit ? 'hit-label' : ''">{{ exactScoreHitLabel }}</small>
         </article>
 
         <article class="compare-card">
@@ -370,5 +407,51 @@ watch(matchNo, loadPage)
   .insight-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.top3-scores {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.top3-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.top3-item em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--color-muted);
+  min-width: 14px;
+}
+
+.top3-item small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-muted);
+  margin-left: auto;
+}
+
+.top3-hit {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+
+.top3-miss {
+  color: var(--color-ink);
+}
+
+.hit-label {
+  color: #16a34a;
+  font-weight: 600;
 }
 </style>
