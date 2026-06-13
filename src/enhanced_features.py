@@ -33,6 +33,10 @@ def enhanced_feature_columns() -> list[str]:
         "away_rest_days",
         "rest_days_diff",
         "is_competitive",
+        "fifa_rank_diff",
+        "squad_size_diff",
+        "squad_age_diff",
+        "squad_caps_diff",
     ]
 
     for window in FORM_WINDOWS:
@@ -177,7 +181,11 @@ def build_historical_enhanced_features(matches: pd.DataFrame) -> pd.DataFrame:
             )
         )
 
-    return add_confederation_features(add_form_differences(pd.DataFrame(rows)))
+    result = add_confederation_features(add_form_differences(pd.DataFrame(rows)))
+    for col in ["fifa_rank_diff", "squad_size_diff", "squad_age_diff", "squad_caps_diff"]:
+        if col not in result.columns:
+            result[col] = 0
+    return result
 
 
 def build_latest_team_form_features(matches: pd.DataFrame) -> pd.DataFrame:
@@ -269,4 +277,8 @@ def build_2026_enhanced_features(
                 f"away_{metric}_last_{window}"
             ].fillna(default_value)
 
+    features["fifa_rank_diff"] = (features.get("away_fifa_rank", 50) - features.get("home_fifa_rank", 50)).fillna(0)
+    features["squad_size_diff"] = (features.get("away_squad_size", 23) - features.get("home_squad_size", 23)).fillna(0)
+    features["squad_age_diff"] = (features.get("away_squad_average_age", 26) - features.get("home_squad_average_age", 26)).fillna(0)
+    features["squad_caps_diff"] = (features.get("away_squad_total_caps", 500) - features.get("home_squad_total_caps", 500)).fillna(0)
     return add_confederation_features(add_form_differences(features))

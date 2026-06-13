@@ -167,7 +167,13 @@ def train_enhanced_model(
         StandardScaler(),
         LogisticRegression(max_iter=1000, random_state=17),
     )
-    model.fit(X_train, y_train)
+    # Time decay: weight recent matches higher (linear decay over years)
+    date_col = "date_et" if "date_et" in train_frame.columns else "match_date"
+    train_dates = pd.to_datetime(train_frame[date_col], errors="coerce")
+    latest = train_dates.max()
+    age_years = (latest - train_dates).dt.days.clip(lower=0) / 365.25
+    weights = 1.0 - 0.3 * np.clip(age_years / 20.0, 0.0, 1.0)  # min weight 0.7 for 20yr old
+    model.fit(X_train, y_train, logisticregression__sample_weight=weights)
 
     raw_probs = model.predict_proba(X_test)
     probabilities = apply_upset_protection(raw_probs)
