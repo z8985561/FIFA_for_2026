@@ -2,6 +2,7 @@
 import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import PageNav from '@/components/common/PageNav.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import FactorWaterfall from '@/components/match/FactorWaterfall.vue'
 import MatchCompletenessCard from '@/components/match/MatchCompletenessCard.vue'
@@ -26,6 +27,19 @@ interface BiasInsight {
 const route = useRoute()
 const router = useRouter()
 const matchStore = useMatchStore()
+
+const navItems = [
+  { id: 'sec-probabilities', label: '胜平负概率' },
+  { id: 'sec-preview', label: '赛前情报' },
+  { id: 'sec-team', label: '球队状态' },
+  { id: 'sec-tech', label: '技术统计' },
+  { id: 'sec-compare', label: '实力对比' },
+  { id: 'sec-predictions', label: '预测 vs 实际' },
+  { id: 'sec-insights', label: '偏差拆解' },
+  { id: 'sec-quality', label: '数据完整性' },
+  { id: 'sec-factors', label: '影响因素' },
+  { id: 'sec-scorelines', label: 'Top 比分' },
+]
 const detail = useAsyncState<MatchDetail>()
 const dataQuality = useAsyncState<DataQualityRow[]>()
 const scorelines = useAsyncState<ScorelineRow[]>()
@@ -237,6 +251,9 @@ watch(matchNo, loadPage)
 
 <template>
   <section class="page-stack">
+    <div class="page-layout">
+      <div class="page-content">
+
     <header class="page-heading">
       <span class="eyebrow">Match Analysis</span>
       <h1>{{ matchTitle }}</h1>
@@ -254,7 +271,7 @@ watch(matchNo, loadPage)
 
     <ElAlert v-if="detail.error.value" :title="detail.error.value" type="error" show-icon />
 
-    <div v-if="detail.data.value" class="stat-grid stat-grid-6">
+    <div id="sec-probabilities" v-if="detail.data.value" class="stat-grid stat-grid-6">
       <StatCard label="主胜概率" :value="percent(detail.data.value.outcome_probabilities.home_win)" />
       <StatCard label="平局概率" :value="percent(detail.data.value.outcome_probabilities.draw)" />
       <StatCard label="客胜概率" :value="percent(detail.data.value.outcome_probabilities.away_win)" />
@@ -263,9 +280,9 @@ watch(matchNo, loadPage)
       <StatCard label="双方进球" :value="percent(detail.data.value.outcome_probabilities.both_teams_score)" />
     </div>
 
-    <PreMatchContextCard :sources="detail.data.value?.preview_sources ?? []" />
+    <div id="sec-preview"><PreMatchContextCard :sources="detail.data.value?.preview_sources ?? []" /></div>
 
-    <section v-if="detail.data.value" class="section-card">
+    <section id="sec-team" v-if="detail.data.value" class="section-card">
       <div class="section-title">
         <h2>球队状态</h2>
         <span>来自网易及赛前情报</span>
@@ -282,14 +299,14 @@ watch(matchNo, loadPage)
       </div>
     </section>
 
-    <MatchTechRadar :tech="detail.data.value?.match_tech" />
+    <div id="sec-tech"><MatchTechRadar :tech="detail.data.value?.match_tech" /></div>
 
-    <TeamCompare
+    <div id="sec-compare"><TeamCompare
       :team-a="detail.data.value?.match?.home_team ?? ''"
       :team-b="detail.data.value?.match?.away_team ?? ''"
-    />
+    /></div>
 
-    <section v-if="detail.data.value" class="section-card">
+    <section id="sec-predictions" v-if="detail.data.value" class="section-card">
       <div class="section-title">
         <h2>预测 vs 实际</h2>
         <span v-if="detail.data.value.match.completed">赛后复盘视角</span>
@@ -331,7 +348,7 @@ watch(matchNo, loadPage)
       </div>
     </section>
 
-    <section v-if="detail.data.value && detail.data.value.match.completed && biasInsights.length" class="section-card">
+    <section id="sec-insights" v-if="detail.data.value && detail.data.value.match.completed && biasInsights.length" class="section-card">
       <div class="section-title">
         <h2>预测偏差拆解</h2>
         <span>白盒解释模型偏差来自哪里</span>
@@ -354,9 +371,9 @@ watch(matchNo, loadPage)
       </div>
     </section>
 
-    <MatchCompletenessCard :quality="currentQuality" />
+    <div id="sec-quality"><MatchCompletenessCard :quality="currentQuality" /></div>
 
-    <section v-if="detail.data.value" class="section-card">
+    <section id="sec-factors" v-if="detail.data.value" class="section-card">
       <div class="section-title">
         <h2>影响因素瀑布图</h2>
         <span>主队净修正视角</span>
@@ -364,7 +381,7 @@ watch(matchNo, loadPage)
       <FactorWaterfall :factors="detail.data.value.factor_breakdown" />
     </section>
 
-    <section class="section-card">
+    <section id="sec-scorelines" class="section-card">
       <div class="section-title">
         <h2>Top 10 比分概率</h2>
         <span>{{ scorelines.loading.value ? '加载中...' : '含体彩赔率快照' }}</span>
@@ -372,6 +389,9 @@ watch(matchNo, loadPage)
       <ScorelineProbabilityChart :rows="scorelines.data.value ?? []" />
       <ScorelineTable :rows="scorelines.data.value ?? []" />
     </section>
+      </div>
+      <PageNav :items="navItems" />
+    </div>
   </section>
 </template>
 
@@ -505,4 +525,21 @@ watch(matchNo, loadPage)
   color: #16a34a;
   font-weight: 600;
 }
+.page-layout {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  gap: 28px;
+  align-items: start;
+}
+
+.page-content {
+  min-width: 0;
+}
+
+@media (max-width: 1280px) {
+  .page-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 </style>
