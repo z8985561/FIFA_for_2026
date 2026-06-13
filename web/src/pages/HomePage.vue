@@ -4,24 +4,27 @@ import { onMounted } from 'vue'
 import DataSnapshotBar from '@/components/common/DataSnapshotBar.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import HomeCompletenessSummary from '@/components/home/HomeCompletenessSummary.vue'
+import MatchReviewInsight from '@/components/home/MatchReviewInsight.vue'
 import RecentResultsReview from '@/components/home/RecentResultsReview.vue'
 import MatchCard from '@/components/match/MatchCard.vue'
 import ScorelineTable from '@/components/match/ScorelineTable.vue'
 import { useAsyncState } from '@/composables/useAsyncState'
 import { dashboardApi } from '@/services/api'
 import { useMatchStore } from '@/stores/match'
-import type { DataQualityRow, HealthResponse, ScorelineRow } from '@/types/api'
+import type { DataQualityRow, HealthResponse, MatchReviewRow, ScorelineRow } from '@/types/api'
 
 const matchStore = useMatchStore()
 const health = useAsyncState<HealthResponse>()
 const dataQuality = useAsyncState<DataQualityRow[]>()
 const valueRows = useAsyncState<ScorelineRow[]>()
+const matchReviews = useAsyncState<MatchReviewRow[]>()
 
 onMounted(() => {
   matchStore.loadMatches()
   health.run(dashboardApi.health)
   dataQuality.run(dashboardApi.dataQuality)
   valueRows.run(() => dashboardApi.valueScorelines(8, 'edge'))
+  matchReviews.run(() => dashboardApi.matchReviews(8))
 })
 </script>
 
@@ -81,6 +84,8 @@ onMounted(() => {
       </div>
       <RecentResultsReview :matches="matchStore.recentCompletedMatches" />
     </section>
+
+    <MatchReviewInsight :reviews="matchReviews.data.value ?? []" />
 
     <section class="section-card">
       <div class="section-title">
