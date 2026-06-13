@@ -103,8 +103,8 @@ export interface TeamContext {
   coach_name_zh?: string | null
   coach_name_en?: string | null
   suspended_count: number
-  suspended_players_zh: string[]
-  suspended_players_en: string[]
+  suspended_players_zh: readonly string[]
+  suspended_players_en: readonly string[]
   squad_size?: number | null
 }
 

@@ -2,7 +2,7 @@
 import type { MatchReviewRow } from '@/types/api'
 
 const props = defineProps<{
-  reviews: MatchReviewRow[]
+  reviews: readonly MatchReviewRow[]
 }>()
 
 function bucketLabel(bucket: string): string {

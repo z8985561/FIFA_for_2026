@@ -2,7 +2,7 @@
 import type { MatchPreviewSource } from '@/types/api'
 
 const props = defineProps<{
-  sources: MatchPreviewSource[]
+  sources: readonly MatchPreviewSource[]
 }>()
 
 function openUrl(url?: string | null) {
