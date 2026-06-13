@@ -94,11 +94,24 @@ class DataQualityRow(BaseModel):
     missing_items: list[str]
 
 
+class TeamContext(BaseModel):
+    team_name: str
+    team_name_zh: str
+    coach_name_zh: str | None = None
+    coach_name_en: str | None = None
+    suspended_count: int = 0
+    suspended_players_zh: list[str] = []
+    suspended_players_en: list[str] = []
+    squad_size: int | None = None
+
+
 class MatchDetail(BaseModel):
     match: MatchSummary
     expected_goals: dict[str, float | None]
     outcome_probabilities: dict[str, float | None]
     market_probabilities: dict[str, float | None]
+    home_team_context: TeamContext | None = None
+    away_team_context: TeamContext | None = None
     factor_breakdown: list[dict[str, float | str | bool | None]]
 
 

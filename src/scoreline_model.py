@@ -28,8 +28,10 @@ from .project_paths import (
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_METRICS_PATH,
     SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH,
+    WANGYI_SQUAD_STATS_2026_PATH,
     ensure_project_directories,
 )
+from .team_names import ascii_fold
 
 DEFAULT_MAX_GOALS = 7
 DEFAULT_TOP_SCORES = 10
@@ -38,6 +40,19 @@ DEFAULT_MARKET_OUTCOME_ANCHOR_WEIGHT = 0.25
 DEFAULT_MARKET_TOTAL_GOALS_ANCHOR_WEIGHT = 0.35
 GROUP_OPENER_MISMATCH_ELO_THRESHOLD = 150.0
 GROUP_OPENER_FAVORITE_ATTACK_LOG_BOOST = 0.045
+SUSPENSION_IMPACT_WEIGHT = 0.75
+POSITION_FALLBACK_ATTACK_IMPACTS = {
+    "FW": 0.02,
+    "MF": 0.01,
+    "DF": 0.004,
+    "GK": 0.0,
+}
+POSITION_FALLBACK_DEFENSE_IMPACTS = {
+    "GK": 0.02,
+    "DF": 0.015,
+    "MF": 0.006,
+    "FW": 0.002,
+}
 
 PLAYER_ATTACK_IMPACTS = {
     # Group A
@@ -368,6 +383,14 @@ FORMATION_DEFENSE_IMPACTS = {
 }
 
 
+def _impact_lookup(mapping: dict[str, float]) -> dict[str, float]:
+    return {ascii_fold(name).lower(): value for name, value in mapping.items()}
+
+
+PLAYER_ATTACK_IMPACT_LOOKUP = _impact_lookup(PLAYER_ATTACK_IMPACTS)
+PLAYER_DEFENSE_IMPACT_LOOKUP = _impact_lookup(PLAYER_DEFENSE_IMPACTS)
+
+
 @dataclass(frozen=True)
 class ScorelineMetrics:
     train_matches: int
@@ -530,6 +553,117 @@ def lineup_adjustment_for_team(
     return rows.iloc[0].to_dict()
 
 
+def player_impact_from_names(
+    names: list[str | None],
+    lookup: dict[str, float],
+) -> float | None:
+    best: float | None = None
+    for name in names:
+        if not name:
+            continue
+        key = ascii_fold(str(name)).lower()
+        if key in lookup:
+            value = float(lookup[key])
+            best = value if best is None else max(best, value)
+    return best
+
+
+def suspension_player_attack_impact(row: dict[str, object]) -> float:
+    impact = player_impact_from_names(
+        [row.get("name_en"), row.get("name_zh")],
+        PLAYER_ATTACK_IMPACT_LOOKUP,
+    )
+    if impact is not None:
+        return impact
+    return POSITION_FALLBACK_ATTACK_IMPACTS.get(str(row.get("position")), 0.0)
+
+
+def suspension_player_defense_impact(row: dict[str, object]) -> float:
+    impact = player_impact_from_names(
+        [row.get("name_en"), row.get("name_zh")],
+        PLAYER_DEFENSE_IMPACT_LOOKUP,
+    )
+    if impact is not None:
+        return impact
+    return POSITION_FALLBACK_DEFENSE_IMPACTS.get(str(row.get("position")), 0.0)
+
+
+def suspension_adjustment_summary(wangyi_squad_stats: pd.DataFrame) -> pd.DataFrame:
+    if wangyi_squad_stats.empty:
+        return pd.DataFrame(
+            columns=[
+                "team_name",
+                "suspended_count",
+                "suspended_attack_impact",
+                "suspended_defense_impact",
+                "suspended_players_zh",
+                "suspended_players_en",
+            ]
+        )
+
+    suspended = wangyi_squad_stats.loc[
+        wangyi_squad_stats["is_suspended"].fillna(False)
+    ].copy()
+    if suspended.empty:
+        return pd.DataFrame(
+            columns=[
+                "team_name",
+                "suspended_count",
+                "suspended_attack_impact",
+                "suspended_defense_impact",
+                "suspended_players_zh",
+                "suspended_players_en",
+            ]
+        )
+
+    suspended_rows = suspended.to_dict(orient="records")
+    suspended["attack_impact"] = [
+        suspension_player_attack_impact(row) for row in suspended_rows
+    ]
+    suspended["defense_impact"] = [
+        suspension_player_defense_impact(row) for row in suspended_rows
+    ]
+
+    summary = (
+        suspended.groupby("team_name", as_index=False)
+        .agg(
+            suspended_count=("player_id", "count"),
+            suspended_attack_impact=("attack_impact", "sum"),
+            suspended_defense_impact=("defense_impact", "sum"),
+            suspended_players_zh=("name_zh", lambda values: "、".join(sorted(set(values)))),
+            suspended_players_en=("name_en", lambda values: " | ".join(sorted(set(values)))),
+        )
+        .sort_values("team_name")
+        .reset_index(drop=True)
+    )
+    return summary
+
+
+def suspension_adjustment_for_team(
+    suspension_summary: pd.DataFrame,
+    *,
+    team_name: str,
+) -> dict[str, object]:
+    if suspension_summary.empty:
+        return {
+            "suspended_count": 0,
+            "suspended_attack_impact": 0.0,
+            "suspended_defense_impact": 0.0,
+            "suspended_players_zh": "",
+            "suspended_players_en": "",
+        }
+    rows = suspension_summary.loc[suspension_summary["team_name"].eq(team_name)]
+    if rows.empty:
+        return {
+            "suspended_count": 0,
+            "suspended_attack_impact": 0.0,
+            "suspended_defense_impact": 0.0,
+            "suspended_players_zh": "",
+            "suspended_players_en": "",
+        }
+    return rows.iloc[0].to_dict()
+
+
 def apply_lineup_goal_rate_adjustment(
     *,
     home_goal_rate: float,
@@ -555,6 +689,42 @@ def apply_lineup_goal_rate_adjustment(
         "away_lineup_log_adjustment": away_log_adjustment,
         "home_lineup_goal_factor": float(home_factor),
         "away_lineup_goal_factor": float(away_factor),
+        "home_expected_goals": float(adjusted_rates[0]),
+        "away_expected_goals": float(adjusted_rates[1]),
+    }
+
+
+def apply_suspension_goal_rate_adjustment(
+    *,
+    home_goal_rate: float,
+    away_goal_rate: float,
+    home_suspensions: dict[str, object],
+    away_suspensions: dict[str, object],
+) -> dict[str, float]:
+    home_log_adjustment = clamp_lineup_adjustment(
+        SUSPENSION_IMPACT_WEIGHT
+        * (
+            -float(home_suspensions["suspended_attack_impact"])
+            + float(away_suspensions["suspended_defense_impact"])
+        )
+    )
+    away_log_adjustment = clamp_lineup_adjustment(
+        SUSPENSION_IMPACT_WEIGHT
+        * (
+            -float(away_suspensions["suspended_attack_impact"])
+            + float(home_suspensions["suspended_defense_impact"])
+        )
+    )
+    home_factor = math.exp(home_log_adjustment)
+    away_factor = math.exp(away_log_adjustment)
+    adjusted_rates = clip_goal_rates(
+        np.array([home_goal_rate * home_factor, away_goal_rate * away_factor])
+    )
+    return {
+        "home_suspension_log_adjustment": home_log_adjustment,
+        "away_suspension_log_adjustment": away_log_adjustment,
+        "home_suspension_goal_factor": float(home_factor),
+        "away_suspension_goal_factor": float(away_factor),
         "home_expected_goals": float(adjusted_rates[0]),
         "away_expected_goals": float(adjusted_rates[1]),
     }
@@ -920,6 +1090,7 @@ def build_scoreline_analysis(
     max_goals: int,
     top_scores: int,
     predicted_lineups: pd.DataFrame | None = None,
+    wangyi_squad_stats: pd.DataFrame | None = None,
     market_constraints: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     columns = enhanced_feature_columns()
@@ -930,6 +1101,9 @@ def build_scoreline_analysis(
     away_rates = clip_goal_rates(away_model.predict(fixtures[columns]))
     lineup_summary = lineup_adjustment_summary(
         pd.DataFrame() if predicted_lineups is None else predicted_lineups
+    )
+    suspension_summary = suspension_adjustment_summary(
+        pd.DataFrame() if wangyi_squad_stats is None else wangyi_squad_stats
     )
     market_constraints = pd.DataFrame() if market_constraints is None else market_constraints
 
@@ -950,15 +1124,29 @@ def build_scoreline_analysis(
             match_no=int(row.match_no),
             team_name=str(row.away_team),
         )
+        home_suspensions = suspension_adjustment_for_team(
+            suspension_summary,
+            team_name=str(row.home_team),
+        )
+        away_suspensions = suspension_adjustment_for_team(
+            suspension_summary,
+            team_name=str(row.away_team),
+        )
         lineup_adjustment = apply_lineup_goal_rate_adjustment(
             home_goal_rate=float(home_rate),
             away_goal_rate=float(away_rate),
             home_lineup=home_lineup,
             away_lineup=away_lineup,
         )
-        opener_adjustment = apply_group_opener_mismatch_adjustment(
+        suspension_adjustment = apply_suspension_goal_rate_adjustment(
             home_goal_rate=float(lineup_adjustment["home_expected_goals"]),
             away_goal_rate=float(lineup_adjustment["away_expected_goals"]),
+            home_suspensions=home_suspensions,
+            away_suspensions=away_suspensions,
+        )
+        opener_adjustment = apply_group_opener_mismatch_adjustment(
+            home_goal_rate=float(suspension_adjustment["home_expected_goals"]),
+            away_goal_rate=float(suspension_adjustment["away_expected_goals"]),
             stage=row.stage,
             group_match_round=getattr(row, "group_match_round", None),
             elo_diff=getattr(row, "elo_diff", 0.0),
@@ -1001,6 +1189,22 @@ def build_scoreline_analysis(
                     "away_lineup_log_adjustment": lineup_adjustment[
                         "away_lineup_log_adjustment"
                     ],
+                    "home_suspension_goal_factor": suspension_adjustment[
+                        "home_suspension_goal_factor"
+                    ],
+                    "away_suspension_goal_factor": suspension_adjustment[
+                        "away_suspension_goal_factor"
+                    ],
+                    "home_suspension_log_adjustment": suspension_adjustment[
+                        "home_suspension_log_adjustment"
+                    ],
+                    "away_suspension_log_adjustment": suspension_adjustment[
+                        "away_suspension_log_adjustment"
+                    ],
+                    "home_suspended_count": int(home_suspensions["suspended_count"]),
+                    "away_suspended_count": int(away_suspensions["suspended_count"]),
+                    "home_suspended_players_zh": home_suspensions["suspended_players_zh"],
+                    "away_suspended_players_zh": away_suspensions["suspended_players_zh"],
                     "home_lineup_status": home_lineup["lineup_status"],
                     "away_lineup_status": away_lineup["lineup_status"],
                     "home_formation": home_lineup["formation"],
@@ -1059,6 +1263,11 @@ def prepare_scoreline_analysis(
     matches = pd.read_parquet(MATCHES_PATH)
     match_features = pd.read_parquet(MATCH_FEATURE_STORE_2026_PATH)
     predicted_lineups = pd.read_parquet(PREDICTED_LINEUPS_PATH)
+    wangyi_squad_stats = (
+        pd.read_parquet(WANGYI_SQUAD_STATS_2026_PATH)
+        if WANGYI_SQUAD_STATS_2026_PATH.exists()
+        else pd.DataFrame()
+    )
     sporttery_market_odds_snapshots = (
         pd.read_parquet(SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH)
         if SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH.exists()
@@ -1080,6 +1289,7 @@ def prepare_scoreline_analysis(
         max_goals=max_goals,
         top_scores=top_scores,
         predicted_lineups=predicted_lineups,
+        wangyi_squad_stats=wangyi_squad_stats,
         market_constraints=market_constraints,
     )
 

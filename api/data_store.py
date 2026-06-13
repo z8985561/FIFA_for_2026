@@ -18,6 +18,8 @@ from src.project_paths import (
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_VALUE_BETS_PATH,
     TOURNAMENT_SIMULATION_PATH,
+    WANGYI_COACHES_2026_PATH,
+    WANGYI_SQUAD_STATS_2026_PATH,
 )
 
 from .schemas import (
@@ -32,6 +34,7 @@ from .schemas import (
     SimulatorCombination,
     SimulatorRequest,
     SimulatorResponse,
+    TeamContext,
 )
 from .team_locale import zh_team_name
 
@@ -116,6 +119,8 @@ class DashboardDataStore:
     match_features: pd.DataFrame
     official_results: pd.DataFrame
     match_reviews: pd.DataFrame
+    wangyi_coaches: pd.DataFrame
+    wangyi_squad_stats: pd.DataFrame
 
     @classmethod
     def load(cls) -> DashboardDataStore:
@@ -132,6 +137,8 @@ class DashboardDataStore:
             match_features=_read_table(MATCH_FEATURE_STORE_2026_PATH),
             official_results=_read_table(OFFICIAL_MATCH_RESULTS_2026_PATH),
             match_reviews=match_reviews,
+            wangyi_coaches=_read_table(WANGYI_COACHES_2026_PATH),
+            wangyi_squad_stats=_read_table(WANGYI_SQUAD_STATS_2026_PATH),
         )
 
     def row_counts(self) -> dict[str, int]:
@@ -145,6 +152,8 @@ class DashboardDataStore:
             "match_features": len(self.match_features),
             "official_results": len(self.official_results),
             "match_reviews": len(self.match_reviews),
+            "wangyi_coaches": len(self.wangyi_coaches),
+            "wangyi_squad_stats": len(self.wangyi_squad_stats),
         }
 
     def metadata(self) -> MetadataResponse:
@@ -284,6 +293,8 @@ class DashboardDataStore:
             expected_goals=expected_goals,
             outcome_probabilities=outcome_probabilities,
             market_probabilities=market_probabilities,
+            home_team_context=self._team_context(match.home_team),
+            away_team_context=self._team_context(match.away_team),
             factor_breakdown=self._factor_breakdown(score_row, enhanced_row),
         )
 
@@ -580,7 +591,13 @@ class DashboardDataStore:
         if self.enhanced.empty:
             return {}
         out: dict[int, dict[str, Any]] = {}
-        cols = ["match_no", "predicted_outcome", "home_win_probability", "draw_probability", "away_win_probability"]
+        cols = [
+            "match_no",
+            "predicted_outcome",
+            "home_win_probability",
+            "draw_probability",
+            "away_win_probability",
+        ]
         available = [c for c in cols if c in self.enhanced.columns]
         for _, row in self.enhanced[available].iterrows():
             mn = int(row["match_no"])
@@ -591,7 +608,11 @@ class DashboardDataStore:
         if self.scorelines.empty:
             return {}
         rank_col = "scoreline_rank" if "scoreline_rank" in self.scorelines.columns else None
-        prob_col = "scoreline_probability" if "scoreline_probability" in self.scorelines.columns else None
+        prob_col = (
+            "scoreline_probability"
+            if "scoreline_probability" in self.scorelines.columns
+            else None
+        )
         if not rank_col or not prob_col:
             return {}
         top = self.scorelines[self.scorelines[rank_col] == 1][["match_no", "scoreline", prob_col]]
@@ -974,6 +995,59 @@ class DashboardDataStore:
             latest_fetched_at=_as_str(row, "latest_fetched_at"),
         )
 
+    def _team_context(self, team_name: str) -> TeamContext | None:
+        coach_rows = (
+            self.wangyi_coaches.loc[self.wangyi_coaches["team_name"].eq(team_name)]
+            if not self.wangyi_coaches.empty
+            else pd.DataFrame()
+        )
+        squad_rows = (
+            self.wangyi_squad_stats.loc[self.wangyi_squad_stats["team_name"].eq(team_name)]
+            if not self.wangyi_squad_stats.empty
+            else pd.DataFrame()
+        )
+        if coach_rows.empty and squad_rows.empty:
+            return None
+
+        coach_row = coach_rows.iloc[0] if not coach_rows.empty else pd.Series(dtype=object)
+        suspended_rows = (
+            squad_rows.loc[squad_rows["is_suspended"].fillna(False)].copy()
+            if not squad_rows.empty and "is_suspended" in squad_rows.columns
+            else pd.DataFrame()
+        )
+        suspended_players_zh = (
+            sorted(
+                {
+                    str(value)
+                    for value in suspended_rows.get("name_zh", pd.Series(dtype=object)).dropna()
+                    if str(value).strip()
+                }
+            )
+            if not suspended_rows.empty
+            else []
+        )
+        suspended_players_en = (
+            sorted(
+                {
+                    str(value)
+                    for value in suspended_rows.get("name_en", pd.Series(dtype=object)).dropna()
+                    if str(value).strip()
+                }
+            )
+            if not suspended_rows.empty
+            else []
+        )
+        return TeamContext(
+            team_name=team_name,
+            team_name_zh=zh_team_name(team_name) or team_name,
+            coach_name_zh=_as_str(coach_row, "manager_name_zh"),
+            coach_name_en=_as_str(coach_row, "manager_name_en"),
+            suspended_count=len(suspended_rows),
+            suspended_players_zh=suspended_players_zh,
+            suspended_players_en=suspended_players_en,
+            squad_size=None if squad_rows.empty else int(len(squad_rows)),
+        )
+
     def _factor_breakdown(
         self,
         score_row: pd.Series,
@@ -991,6 +1065,16 @@ class DashboardDataStore:
                 "home_delta_goals": _as_float(score_row, "home_lineup_log_adjustment"),
                 "away_delta_goals": _as_float(score_row, "away_lineup_log_adjustment"),
                 "description": "根据预测首发对进攻和防守的影响做温和修正。",
+            },
+            {
+                "factor": "停赛球员修正",
+                "home_delta_goals": _as_float(score_row, "home_suspension_log_adjustment"),
+                "away_delta_goals": _as_float(score_row, "away_suspension_log_adjustment"),
+                "applied": (
+                    (_as_int(score_row, "home_suspended_count") or 0) > 0
+                    or (_as_int(score_row, "away_suspended_count") or 0) > 0
+                ),
+                "description": "根据网易阵容数据中的停赛球员，对双方进攻和防守能力做额外修正。",
             },
             {
                 "factor": "小组首战节奏",

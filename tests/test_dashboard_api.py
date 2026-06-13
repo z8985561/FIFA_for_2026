@@ -83,6 +83,22 @@ def test_match_scorelines_include_value_fields() -> None:
     assert rows[0]["away_team_zh"] == "南非"
 
 
+def test_match_detail_exposes_wangyi_team_context() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/matches/1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["match"]["home_team"] == "Mexico"
+    assert payload["home_team_context"]["team_name"] == "Mexico"
+    assert payload["home_team_context"]["coach_name_zh"] is not None
+    assert "suspended_count" in payload["home_team_context"]
+    assert any(
+        factor["factor"] == "停赛球员修正"
+        for factor in payload["factor_breakdown"]
+    )
+
+
 def test_match_reviews_expose_review_rows() -> None:
     with TestClient(app) as client:
         response = client.get("/api/reviews/matches?limit=2")

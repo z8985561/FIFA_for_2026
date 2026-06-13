@@ -4,6 +4,7 @@ __pycache__/
 .ruff_cache/
 .ipynb_checkpoints/
 .env
+.firecrawl/
 .egg-info/
 src/*.egg-info/
 python-3.11.9-amd64.exe

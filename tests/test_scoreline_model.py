@@ -5,6 +5,7 @@ from src.scoreline_model import (
     apply_group_opener_mismatch_adjustment,
     apply_lineup_goal_rate_adjustment,
     apply_market_scoreline_constraints,
+    apply_suspension_goal_rate_adjustment,
     build_scoreline_market_constraints,
     dixon_coles_factor,
     inflate_scoreline_probability,
@@ -83,6 +84,27 @@ def test_apply_lineup_goal_rate_adjustment_keeps_rates_positive() -> None:
     assert adjusted["home_expected_goals"] > 1.5
     assert adjusted["away_expected_goals"] < 1.0
     assert adjusted["home_lineup_goal_factor"] > 1.0
+
+
+def test_apply_suspension_goal_rate_adjustment_penalizes_missing_attackers() -> None:
+    adjusted = apply_suspension_goal_rate_adjustment(
+        home_goal_rate=1.5,
+        away_goal_rate=1.0,
+        home_suspensions={
+            "suspended_attack_impact": 0.05,
+            "suspended_defense_impact": 0.0,
+            "suspended_count": 1,
+        },
+        away_suspensions={
+            "suspended_attack_impact": 0.0,
+            "suspended_defense_impact": 0.03,
+            "suspended_count": 1,
+        },
+    )
+
+    assert adjusted["home_expected_goals"] < 1.5
+    assert adjusted["away_expected_goals"] == 1.0
+    assert adjusted["home_suspension_goal_factor"] < 1.0
 
 
 def test_add_group_match_rounds_assigns_two_matches_per_group_round() -> None:
