@@ -15,6 +15,7 @@ from src.project_paths import (
     MATCH_FEATURE_STORE_2026_PATH,
     MATCH_REVIEW_FEATURES_PATH,
     OFFICIAL_MATCH_RESULTS_2026_PATH,
+    PRE_MATCH_CONTEXT_2026_PATH,
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_VALUE_BETS_PATH,
     TOURNAMENT_SIMULATION_PATH,
@@ -26,6 +27,7 @@ from .schemas import (
     DataQualityRow,
     GroupAdvanceRow,
     MatchDetail,
+    MatchPreviewSource,
     MatchReviewRow,
     MatchSummary,
     MetadataResponse,
@@ -121,6 +123,7 @@ class DashboardDataStore:
     match_reviews: pd.DataFrame
     wangyi_coaches: pd.DataFrame
     wangyi_squad_stats: pd.DataFrame
+    pre_match_context: pd.DataFrame
 
     @classmethod
     def load(cls) -> DashboardDataStore:
@@ -139,6 +142,7 @@ class DashboardDataStore:
             match_reviews=match_reviews,
             wangyi_coaches=_read_table(WANGYI_COACHES_2026_PATH),
             wangyi_squad_stats=_read_table(WANGYI_SQUAD_STATS_2026_PATH),
+            pre_match_context=_read_table(PRE_MATCH_CONTEXT_2026_PATH),
         )
 
     def row_counts(self) -> dict[str, int]:
@@ -154,6 +158,7 @@ class DashboardDataStore:
             "match_reviews": len(self.match_reviews),
             "wangyi_coaches": len(self.wangyi_coaches),
             "wangyi_squad_stats": len(self.wangyi_squad_stats),
+            "pre_match_context": len(self.pre_match_context),
         }
 
     def metadata(self) -> MetadataResponse:
@@ -295,6 +300,7 @@ class DashboardDataStore:
             market_probabilities=market_probabilities,
             home_team_context=self._team_context(match.home_team),
             away_team_context=self._team_context(match.away_team),
+            preview_sources=self._preview_sources(match_no),
             factor_breakdown=self._factor_breakdown(score_row, enhanced_row),
         )
 
@@ -1048,6 +1054,38 @@ class DashboardDataStore:
             squad_size=None if squad_rows.empty else int(len(squad_rows)),
         )
 
+    def _preview_sources(self, match_no: int) -> list[MatchPreviewSource]:
+        if self.pre_match_context.empty:
+            return []
+        rows = self.pre_match_context.loc[
+            self.pre_match_context["match_no"].eq(match_no)
+        ].sort_values(["source_rank", "source_name"], na_position="last")
+        sources: list[MatchPreviewSource] = []
+        for _, row in rows.iterrows():
+            sources.append(
+                MatchPreviewSource(
+                    match_no=int(row.match_no),
+                    team_name=(
+                        f"{_as_str(row, 'home_team') or ''} vs "
+                        f"{_as_str(row, 'away_team') or ''}"
+                    ),
+                    team_name_zh=(
+                        f"{_as_str(row, 'home_team_zh') or ''} vs "
+                        f"{_as_str(row, 'away_team_zh') or ''}"
+                    ).strip(),
+                    source_name=_as_str(row, "source_name"),
+                    source_domain=_as_str(row, "source_domain"),
+                    source_title=_as_str(row, "source_title"),
+                    source_url=_as_str(row, "source_url"),
+                    published_time=_as_str(row, "published_time"),
+                    predicted_lineup_text=_as_str(row, "predicted_lineup_text"),
+                    injury_notes=_as_str(row, "injury_notes"),
+                    coach_quotes=_as_str(row, "coach_quotes"),
+                    key_player_notes=_as_str(row, "key_player_notes"),
+                )
+            )
+        return sources
+
     def _factor_breakdown(
         self,
         score_row: pd.Series,
@@ -1075,6 +1113,19 @@ class DashboardDataStore:
                     or (_as_int(score_row, "away_suspended_count") or 0) > 0
                 ),
                 "description": "根据网易阵容数据中的停赛球员，对双方进攻和防守能力做额外修正。",
+            },
+            {
+                "factor": "赛前情报修正",
+                "home_delta_goals": _as_float(score_row, "home_preview_log_adjustment"),
+                "away_delta_goals": _as_float(score_row, "away_preview_log_adjustment"),
+                "applied": (
+                    (_as_int(score_row, "home_preview_source_count") or 0) > 0
+                    or (_as_int(score_row, "away_preview_source_count") or 0) > 0
+                ),
+                "description": (
+                    "结合 Firecrawl 抓取的预测首发、伤停补充和关键球员信息，"
+                    "对赛前状态做轻量修正。"
+                ),
             },
             {
                 "factor": "小组首战节奏",

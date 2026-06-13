@@ -24,6 +24,7 @@ from .lineups_pipeline import TEAM_NAME_ZH, prepare_predicted_lineups
 from .project_paths import (
     MATCH_FEATURE_STORE_2026_PATH,
     MATCHES_PATH,
+    PRE_MATCH_CONTEXT_2026_PATH,
     PREDICTED_LINEUPS_PATH,
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_METRICS_PATH,
@@ -41,6 +42,10 @@ DEFAULT_MARKET_TOTAL_GOALS_ANCHOR_WEIGHT = 0.35
 GROUP_OPENER_MISMATCH_ELO_THRESHOLD = 150.0
 GROUP_OPENER_FAVORITE_ATTACK_LOG_BOOST = 0.045
 SUSPENSION_IMPACT_WEIGHT = 0.75
+PRE_MATCH_CONTEXT_LINEUP_WEIGHT = 0.2
+PRE_MATCH_CONTEXT_OUT_WEIGHT = 0.6
+PRE_MATCH_CONTEXT_DOUBTFUL_WEIGHT = 0.35
+PRE_MATCH_CONTEXT_RETURN_WEIGHT = 0.2
 POSITION_FALLBACK_ATTACK_IMPACTS = {
     "FW": 0.02,
     "MF": 0.01,
@@ -664,6 +669,241 @@ def suspension_adjustment_for_team(
     return rows.iloc[0].to_dict()
 
 
+def player_profile_for_context(row: dict[str, object]) -> dict[str, object]:
+    attack_impact = player_impact_from_names(
+        [row.get("name_en"), row.get("name_zh")],
+        PLAYER_ATTACK_IMPACT_LOOKUP,
+    )
+    defense_impact = player_impact_from_names(
+        [row.get("name_en"), row.get("name_zh")],
+        PLAYER_DEFENSE_IMPACT_LOOKUP,
+    )
+    name_en = str(row.get("name_en") or "").strip()
+    name_zh = str(row.get("name_zh") or "").strip()
+    aliases = {
+        ascii_fold(value).lower()
+        for value in (name_en, name_zh)
+        if value
+    }
+    return {
+        "player_name": name_en or name_zh,
+        "attack_impact": (
+            float(attack_impact)
+            if attack_impact is not None
+            else POSITION_FALLBACK_ATTACK_IMPACTS.get(str(row.get("position")), 0.0)
+        ),
+        "defense_impact": (
+            float(defense_impact)
+            if defense_impact is not None
+            else POSITION_FALLBACK_DEFENSE_IMPACTS.get(str(row.get("position")), 0.0)
+        ),
+        "aliases": aliases,
+    }
+
+
+def build_context_player_profiles(
+    wangyi_squad_stats: pd.DataFrame,
+) -> dict[str, list[dict[str, object]]]:
+    if wangyi_squad_stats.empty:
+        return {}
+    profiles: dict[str, list[dict[str, object]]] = {}
+    for team_name, group in wangyi_squad_stats.groupby("team_name"):
+        team_profiles: list[dict[str, object]] = []
+        for row in group.to_dict(orient="records"):
+            profile = player_profile_for_context(row)
+            if not profile["aliases"]:
+                continue
+            team_profiles.append(profile)
+        profiles[str(team_name)] = team_profiles
+    return profiles
+
+
+def _context_lines(text: object) -> list[str]:
+    if text is None:
+        return []
+    return [
+        line.strip()
+        for line in str(text).replace("\r\n", "\n").replace("\r", "\n").splitlines()
+        if line.strip()
+    ]
+
+
+def _find_matched_profiles(
+    line: str,
+    team_profiles: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    normalized = ascii_fold(line).lower()
+    matched: list[dict[str, object]] = []
+    for profile in team_profiles:
+        aliases = profile.get("aliases", set())
+        if any(alias and alias in normalized for alias in aliases):
+            matched.append(profile)
+    return matched
+
+
+def _top_impact_sum(
+    profiles: list[dict[str, object]],
+    key: str,
+    *,
+    limit: int = 3,
+) -> float:
+    values = sorted(
+        [
+            float(profile.get(key, 0.0))
+            for profile in profiles
+            if float(profile.get(key, 0.0)) > 0
+        ],
+        reverse=True,
+    )
+    return float(sum(values[:limit]))
+
+
+def pre_match_context_adjustment_summary(
+    pre_match_context: pd.DataFrame,
+    *,
+    wangyi_squad_stats: pd.DataFrame,
+    predicted_lineups: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    columns = [
+        "match_no",
+        "team_name",
+        "context_source_count",
+        "context_source_names",
+        "context_attack_delta",
+        "context_defense_delta",
+    ]
+    if pre_match_context.empty or wangyi_squad_stats.empty:
+        return pd.DataFrame(columns=columns)
+
+    player_profiles = build_context_player_profiles(wangyi_squad_stats)
+    seeded_pairs: set[tuple[int, str]] = set()
+    if predicted_lineups is not None and not predicted_lineups.empty:
+        seeded_pairs = {
+            (int(row.match_no), str(row.team_name))
+            for row in predicted_lineups[["match_no", "team_name"]].drop_duplicates().itertuples(
+                index=False
+            )
+        }
+
+    summary_rows: list[dict[str, object]] = []
+    for match_no, match_rows in pre_match_context.groupby("match_no"):
+        if match_rows.empty:
+            continue
+        home_team = str(match_rows["home_team"].iloc[0])
+        away_team = str(match_rows["away_team"].iloc[0])
+        for team_name in (home_team, away_team):
+            team_profiles = player_profiles.get(team_name, [])
+            if not team_profiles:
+                continue
+
+            source_names: set[str] = set()
+            lineup_attack = 0.0
+            lineup_defense = 0.0
+            injury_attack = 0.0
+            injury_defense = 0.0
+            return_attack = 0.0
+            return_defense = 0.0
+
+            for context_row in match_rows.itertuples(index=False):
+                source_name = str(getattr(context_row, "source_name", "") or "").strip()
+                if source_name:
+                    source_names.add(source_name)
+
+                lineup_lines = _context_lines(getattr(context_row, "predicted_lineup_text", None))
+                if (int(match_no), team_name) not in seeded_pairs:
+                    for line in lineup_lines:
+                        matched_profiles = _find_matched_profiles(line, team_profiles)
+                        if not matched_profiles:
+                            continue
+                        lineup_attack += _top_impact_sum(
+                            matched_profiles,
+                            "attack_impact",
+                        ) * PRE_MATCH_CONTEXT_LINEUP_WEIGHT
+                        lineup_defense += _top_impact_sum(
+                            matched_profiles,
+                            "defense_impact",
+                        ) * PRE_MATCH_CONTEXT_LINEUP_WEIGHT
+
+                note_lines = _context_lines(getattr(context_row, "injury_notes", None))
+                note_lines.extend(_context_lines(getattr(context_row, "key_player_notes", None)))
+                for line in note_lines:
+                    matched_profiles = _find_matched_profiles(line, team_profiles)
+                    if not matched_profiles:
+                        continue
+                    normalized = ascii_fold(line).lower()
+                    if any(keyword in normalized for keyword in (" out:", "injury", "suspension")):
+                        injury_attack += _top_impact_sum(
+                            matched_profiles,
+                            "attack_impact",
+                        ) * PRE_MATCH_CONTEXT_OUT_WEIGHT
+                        injury_defense += _top_impact_sum(
+                            matched_profiles,
+                            "defense_impact",
+                        ) * PRE_MATCH_CONTEXT_OUT_WEIGHT
+                    elif any(keyword in normalized for keyword in ("doubtful", "fitness")):
+                        injury_attack += _top_impact_sum(
+                            matched_profiles,
+                            "attack_impact",
+                        ) * PRE_MATCH_CONTEXT_DOUBTFUL_WEIGHT
+                        injury_defense += _top_impact_sum(
+                            matched_profiles,
+                            "defense_impact",
+                        ) * PRE_MATCH_CONTEXT_DOUBTFUL_WEIGHT
+                    elif any(
+                        keyword in normalized
+                        for keyword in ("return", "returns", "available", "fit", "back")
+                    ):
+                        return_attack += _top_impact_sum(
+                            matched_profiles,
+                            "attack_impact",
+                        ) * PRE_MATCH_CONTEXT_RETURN_WEIGHT
+                        return_defense += _top_impact_sum(
+                            matched_profiles,
+                            "defense_impact",
+                        ) * PRE_MATCH_CONTEXT_RETURN_WEIGHT
+
+            attack_delta = lineup_attack + return_attack - injury_attack
+            defense_delta = lineup_defense + return_defense - injury_defense
+            summary_rows.append(
+                {
+                    "match_no": int(match_no),
+                    "team_name": team_name,
+                    "context_source_count": len(source_names),
+                    "context_source_names": " | ".join(sorted(source_names)),
+                    "context_attack_delta": float(attack_delta),
+                    "context_defense_delta": float(defense_delta),
+                }
+            )
+
+    return pd.DataFrame(summary_rows, columns=columns)
+
+
+def pre_match_context_for_team(
+    context_summary: pd.DataFrame,
+    *,
+    match_no: int,
+    team_name: str,
+) -> dict[str, object]:
+    if context_summary.empty:
+        return {
+            "context_source_count": 0,
+            "context_source_names": "",
+            "context_attack_delta": 0.0,
+            "context_defense_delta": 0.0,
+        }
+    rows = context_summary.loc[
+        context_summary["match_no"].eq(match_no) & context_summary["team_name"].eq(team_name)
+    ]
+    if rows.empty:
+        return {
+            "context_source_count": 0,
+            "context_source_names": "",
+            "context_attack_delta": 0.0,
+            "context_defense_delta": 0.0,
+        }
+    return rows.iloc[0].to_dict()
+
+
 def apply_lineup_goal_rate_adjustment(
     *,
     home_goal_rate: float,
@@ -725,6 +965,34 @@ def apply_suspension_goal_rate_adjustment(
         "away_suspension_log_adjustment": away_log_adjustment,
         "home_suspension_goal_factor": float(home_factor),
         "away_suspension_goal_factor": float(away_factor),
+        "home_expected_goals": float(adjusted_rates[0]),
+        "away_expected_goals": float(adjusted_rates[1]),
+    }
+
+
+def apply_pre_match_context_goal_rate_adjustment(
+    *,
+    home_goal_rate: float,
+    away_goal_rate: float,
+    home_context: dict[str, object],
+    away_context: dict[str, object],
+) -> dict[str, float]:
+    home_log_adjustment = clamp_lineup_adjustment(
+        float(home_context["context_attack_delta"]) - float(away_context["context_defense_delta"])
+    )
+    away_log_adjustment = clamp_lineup_adjustment(
+        float(away_context["context_attack_delta"]) - float(home_context["context_defense_delta"])
+    )
+    home_factor = math.exp(home_log_adjustment)
+    away_factor = math.exp(away_log_adjustment)
+    adjusted_rates = clip_goal_rates(
+        np.array([home_goal_rate * home_factor, away_goal_rate * away_factor])
+    )
+    return {
+        "home_preview_log_adjustment": home_log_adjustment,
+        "away_preview_log_adjustment": away_log_adjustment,
+        "home_preview_goal_factor": float(home_factor),
+        "away_preview_goal_factor": float(away_factor),
         "home_expected_goals": float(adjusted_rates[0]),
         "away_expected_goals": float(adjusted_rates[1]),
     }
@@ -1091,6 +1359,7 @@ def build_scoreline_analysis(
     top_scores: int,
     predicted_lineups: pd.DataFrame | None = None,
     wangyi_squad_stats: pd.DataFrame | None = None,
+    pre_match_context: pd.DataFrame | None = None,
     market_constraints: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     columns = enhanced_feature_columns()
@@ -1104,6 +1373,13 @@ def build_scoreline_analysis(
     )
     suspension_summary = suspension_adjustment_summary(
         pd.DataFrame() if wangyi_squad_stats is None else wangyi_squad_stats
+    )
+    context_summary = pre_match_context_adjustment_summary(
+        pd.DataFrame() if pre_match_context is None else pre_match_context,
+        wangyi_squad_stats=(
+            pd.DataFrame() if wangyi_squad_stats is None else wangyi_squad_stats
+        ),
+        predicted_lineups=pd.DataFrame() if predicted_lineups is None else predicted_lineups,
     )
     market_constraints = pd.DataFrame() if market_constraints is None else market_constraints
 
@@ -1132,6 +1408,16 @@ def build_scoreline_analysis(
             suspension_summary,
             team_name=str(row.away_team),
         )
+        home_context = pre_match_context_for_team(
+            context_summary,
+            match_no=int(row.match_no),
+            team_name=str(row.home_team),
+        )
+        away_context = pre_match_context_for_team(
+            context_summary,
+            match_no=int(row.match_no),
+            team_name=str(row.away_team),
+        )
         lineup_adjustment = apply_lineup_goal_rate_adjustment(
             home_goal_rate=float(home_rate),
             away_goal_rate=float(away_rate),
@@ -1144,9 +1430,15 @@ def build_scoreline_analysis(
             home_suspensions=home_suspensions,
             away_suspensions=away_suspensions,
         )
-        opener_adjustment = apply_group_opener_mismatch_adjustment(
+        preview_adjustment = apply_pre_match_context_goal_rate_adjustment(
             home_goal_rate=float(suspension_adjustment["home_expected_goals"]),
             away_goal_rate=float(suspension_adjustment["away_expected_goals"]),
+            home_context=home_context,
+            away_context=away_context,
+        )
+        opener_adjustment = apply_group_opener_mismatch_adjustment(
+            home_goal_rate=float(preview_adjustment["home_expected_goals"]),
+            away_goal_rate=float(preview_adjustment["away_expected_goals"]),
             stage=row.stage,
             group_match_round=getattr(row, "group_match_round", None),
             elo_diff=getattr(row, "elo_diff", 0.0),
@@ -1205,6 +1497,18 @@ def build_scoreline_analysis(
                     "away_suspended_count": int(away_suspensions["suspended_count"]),
                     "home_suspended_players_zh": home_suspensions["suspended_players_zh"],
                     "away_suspended_players_zh": away_suspensions["suspended_players_zh"],
+                    "home_preview_goal_factor": preview_adjustment["home_preview_goal_factor"],
+                    "away_preview_goal_factor": preview_adjustment["away_preview_goal_factor"],
+                    "home_preview_log_adjustment": preview_adjustment[
+                        "home_preview_log_adjustment"
+                    ],
+                    "away_preview_log_adjustment": preview_adjustment[
+                        "away_preview_log_adjustment"
+                    ],
+                    "home_preview_source_count": int(home_context["context_source_count"]),
+                    "away_preview_source_count": int(away_context["context_source_count"]),
+                    "home_preview_source_names": home_context["context_source_names"],
+                    "away_preview_source_names": away_context["context_source_names"],
                     "home_lineup_status": home_lineup["lineup_status"],
                     "away_lineup_status": away_lineup["lineup_status"],
                     "home_formation": home_lineup["formation"],
@@ -1268,6 +1572,11 @@ def prepare_scoreline_analysis(
         if WANGYI_SQUAD_STATS_2026_PATH.exists()
         else pd.DataFrame()
     )
+    pre_match_context = (
+        pd.read_parquet(PRE_MATCH_CONTEXT_2026_PATH)
+        if PRE_MATCH_CONTEXT_2026_PATH.exists()
+        else pd.DataFrame()
+    )
     sporttery_market_odds_snapshots = (
         pd.read_parquet(SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH)
         if SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH.exists()
@@ -1290,6 +1599,7 @@ def prepare_scoreline_analysis(
         top_scores=top_scores,
         predicted_lineups=predicted_lineups,
         wangyi_squad_stats=wangyi_squad_stats,
+        pre_match_context=pre_match_context,
         market_constraints=market_constraints,
     )
 

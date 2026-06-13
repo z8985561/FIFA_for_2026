@@ -5,12 +5,14 @@ from src.scoreline_model import (
     apply_group_opener_mismatch_adjustment,
     apply_lineup_goal_rate_adjustment,
     apply_market_scoreline_constraints,
+    apply_pre_match_context_goal_rate_adjustment,
     apply_suspension_goal_rate_adjustment,
     build_scoreline_market_constraints,
     dixon_coles_factor,
     inflate_scoreline_probability,
     lineup_adjustment_summary,
     matrix_summary,
+    pre_match_context_adjustment_summary,
     scoreline_matrix,
 )
 
@@ -105,6 +107,66 @@ def test_apply_suspension_goal_rate_adjustment_penalizes_missing_attackers() -> 
     assert adjusted["home_expected_goals"] < 1.5
     assert adjusted["away_expected_goals"] == 1.0
     assert adjusted["home_suspension_goal_factor"] < 1.0
+
+
+def test_pre_match_context_adjustment_summary_detects_out_and_return_signals() -> None:
+    context = pd.DataFrame(
+        {
+            "match_no": [13],
+            "home_team": ["Brazil"],
+            "away_team": ["Morocco"],
+            "source_name": ["Sports Mole"],
+            "predicted_lineup_text": [
+                (
+                    "**Sports Mole's predicted XI:** Alisson; Danilo, Marquinhos, Gabriel; "
+                    "Raphinha, Vinicius Jr; Cunha\n"
+                    "**Sports Mole's predicted XI:** Bounou; Hakimi, Riad; Diaz, Saibari"
+                )
+            ],
+            "injury_notes": [
+                (
+                    "**Out:** Neymar (calf), Wesley (muscle)\n"
+                    "**Out:** Nayef Aguerd (groin)\n"
+                    "Noussair Mazraoui returns to the squad"
+                )
+            ],
+            "key_player_notes": ["Vinicius Jr is expected to lead the line."],
+        }
+    )
+    squads = pd.DataFrame(
+        {
+            "team_name": ["Brazil", "Brazil", "Brazil", "Morocco", "Morocco"],
+            "position": ["FW", "FW", "DF", "DF", "DF"],
+            "name_en": ["Neymar", "Vinicius Jr", "Wesley", "Nayef Aguerd", "Noussair Mazraoui"],
+            "name_zh": [None, None, None, None, None],
+        }
+    )
+
+    summary = pre_match_context_adjustment_summary(context, wangyi_squad_stats=squads)
+
+    brazil = summary.loc[summary["team_name"].eq("Brazil")].iloc[0]
+    morocco = summary.loc[summary["team_name"].eq("Morocco")].iloc[0]
+    assert brazil["context_source_count"] == 1
+    assert brazil["context_attack_delta"] != 0
+    assert morocco["context_defense_delta"] != 0
+
+
+def test_apply_pre_match_context_goal_rate_adjustment_changes_goal_rates() -> None:
+    adjusted = apply_pre_match_context_goal_rate_adjustment(
+        home_goal_rate=1.4,
+        away_goal_rate=1.1,
+        home_context={
+            "context_attack_delta": -0.03,
+            "context_defense_delta": 0.01,
+        },
+        away_context={
+            "context_attack_delta": 0.02,
+            "context_defense_delta": -0.02,
+        },
+    )
+
+    assert adjusted["home_expected_goals"] != 1.4
+    assert adjusted["away_expected_goals"] != 1.1
 
 
 def test_add_group_match_rounds_assigns_two_matches_per_group_round() -> None:

@@ -158,3 +158,13 @@ def test_simulator_settles_two_by_one() -> None:
     assert payload["combination_count"] == 3
     assert payload["total_stake"] == 6
     assert payload["risk_rating"] in {"Low", "Medium", "High", "Extreme"}
+
+
+def test_match_detail_exposes_preview_sources_when_available() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/matches/8")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["match"]["home_team"] == "Qatar"
+    assert "preview_sources" in payload

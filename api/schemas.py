@@ -105,6 +105,21 @@ class TeamContext(BaseModel):
     squad_size: int | None = None
 
 
+class MatchPreviewSource(BaseModel):
+    match_no: int
+    team_name: str
+    team_name_zh: str
+    source_name: str | None = None
+    source_domain: str | None = None
+    source_title: str | None = None
+    source_url: str | None = None
+    published_time: str | None = None
+    predicted_lineup_text: str | None = None
+    injury_notes: str | None = None
+    coach_quotes: str | None = None
+    key_player_notes: str | None = None
+
+
 class MatchDetail(BaseModel):
     match: MatchSummary
     expected_goals: dict[str, float | None]
@@ -112,6 +127,7 @@ class MatchDetail(BaseModel):
     market_probabilities: dict[str, float | None]
     home_team_context: TeamContext | None = None
     away_team_context: TeamContext | None = None
+    preview_sources: list[MatchPreviewSource] = []
     factor_breakdown: list[dict[str, float | str | bool | None]]
 
 
