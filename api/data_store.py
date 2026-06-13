@@ -517,22 +517,29 @@ class DashboardDataStore:
         rows = rows.merge(top_scorelines, on="match_no", how="left")
         if not self.official_results.empty:
             official_columns = [
-                "match_no",
+                "home_team",
+                "away_team",
                 "home_score",
                 "away_score",
                 "completed",
                 "source_name",
             ]
-            official_rows = self.official_results[
-                [column for column in official_columns if column in self.official_results.columns]
-            ].rename(
+            official_cols_available = [
+                column for column in official_columns if column in self.official_results.columns
+            ]
+            official_rows = self.official_results[official_cols_available].rename(
                 columns={
                     "home_score": "actual_home_score",
                     "away_score": "actual_away_score",
                     "source_name": "result_source_name",
                 }
             )
-            rows = rows.merge(official_rows, on="match_no", how="left")
+            # Merge by team names, not match_no — FIFA and our numbering differ
+            rows = rows.merge(
+                official_rows.drop(columns=["match_no"], errors="ignore"),
+                on=["home_team", "away_team"],
+                how="left",
+            )
         return rows
 
     def _match_summary(self, row: pd.Series) -> MatchSummary:
@@ -644,7 +651,7 @@ class DashboardDataStore:
         home_team = _as_str(row, "home_team") or "TBD"
         away_team = _as_str(row, "away_team") or "TBD"
         mn = int(row.match_no)
-        result = result_lookup.get(mn, {})
+        result = result_lookup.get((home_team, away_team), {})
         pred = (prediction_lookup or {}).get(mn, {})
         top_sl = (top_scoreline_lookup or {}).get(mn, {})
         return ScheduleMatch(
@@ -753,14 +760,14 @@ class DashboardDataStore:
         )
         return set(rows.loc[has_status | has_adjustment, "match_no"].astype(int).tolist())
 
-    def _official_results_by_match(self) -> dict[int, dict[str, Any]]:
-        if self.official_results.empty or "match_no" not in self.official_results.columns:
+    def _official_results_by_match(self) -> dict[tuple[str, str], dict[str, Any]]:
+        if self.official_results.empty:
             return {}
-        rows = self.official_results.dropna(subset=["match_no"]).copy()
+        rows = self.official_results.copy()
         rows = rows.sort_values(["match_no", "fetched_at"], na_position="last")
-        latest = rows.groupby("match_no", as_index=False, sort=False).tail(1)
+        latest = rows.groupby(["home_team", "away_team"], as_index=False, sort=False).tail(1)
         return {
-            int(row.match_no): row.to_dict()
+            (str(row.home_team), str(row.away_team)): row.to_dict()
             for _, row in latest.iterrows()
         }
 
