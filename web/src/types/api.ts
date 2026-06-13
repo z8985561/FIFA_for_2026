@@ -97,11 +97,40 @@ export interface FactorBreakdown {
   description: string
 }
 
+export interface TeamContext {
+  team_name: string
+  team_name_zh: string
+  coach_name_zh?: string | null
+  coach_name_en?: string | null
+  suspended_count: number
+  suspended_players_zh: string[]
+  suspended_players_en: string[]
+  squad_size?: number | null
+}
+
+export interface MatchPreviewSource {
+  match_no: number
+  team_name: string
+  team_name_zh: string
+  source_name?: string | null
+  source_domain?: string | null
+  source_title?: string | null
+  source_url?: string | null
+  published_time?: string | null
+  predicted_lineup_text?: string | null
+  injury_notes?: string | null
+  coach_quotes?: string | null
+  key_player_notes?: string | null
+}
+
 export interface MatchDetail {
   match: MatchSummary
   expected_goals: Record<string, number | null>
   outcome_probabilities: Record<string, number | null>
   market_probabilities: Record<string, number | null>
+  home_team_context?: TeamContext | null
+  away_team_context?: TeamContext | null
+  preview_sources: MatchPreviewSource[]
   factor_breakdown: FactorBreakdown[]
 }
 
