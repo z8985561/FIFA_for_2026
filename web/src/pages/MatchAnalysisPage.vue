@@ -7,7 +7,9 @@ import FactorWaterfall from '@/components/match/FactorWaterfall.vue'
 import MatchCompletenessCard from '@/components/match/MatchCompletenessCard.vue'
 import MatchSwitcher from '@/components/match/MatchSwitcher.vue'
 import ScorelineProbabilityChart from '@/components/match/ScorelineProbabilityChart.vue'
+import PreMatchContextCard from '@/components/match/PreMatchContextCard.vue'
 import ScorelineTable from '@/components/match/ScorelineTable.vue'
+import TeamContextCard from '@/components/match/TeamContextCard.vue'
 import { useAsyncState } from '@/composables/useAsyncState'
 import { dashboardApi } from '@/services/api'
 import { useMatchStore } from '@/stores/match'
@@ -250,11 +252,33 @@ watch(matchNo, loadPage)
 
     <ElAlert v-if="detail.error.value" :title="detail.error.value" type="error" show-icon />
 
-    <div v-if="detail.data.value" class="stat-grid">
+    <div v-if="detail.data.value" class="stat-grid stat-grid-6">
       <StatCard label="主胜概率" :value="percent(detail.data.value.outcome_probabilities.home_win)" />
       <StatCard label="平局概率" :value="percent(detail.data.value.outcome_probabilities.draw)" />
       <StatCard label="客胜概率" :value="percent(detail.data.value.outcome_probabilities.away_win)" />
+      <StatCard label="大 2.5" :value="percent(detail.data.value.outcome_probabilities.over_2_5)" />
+      <StatCard label="小 2.5" :value="percent(detail.data.value.outcome_probabilities.under_2_5)" />
+      <StatCard label="双方进球" :value="percent(detail.data.value.outcome_probabilities.both_teams_score)" />
     </div>
+
+    <PreMatchContextCard :sources="detail.data.value?.preview_sources ?? []" />
+
+    <section v-if="detail.data.value" class="section-card">
+      <div class="section-title">
+        <h2>球队状态</h2>
+        <span>来自网易及赛前情报</span>
+      </div>
+      <div class="team-context-grid">
+        <TeamContextCard
+          :context="detail.data.value.home_team_context"
+          side="home"
+        />
+        <TeamContextCard
+          :context="detail.data.value.away_team_context"
+          side="away"
+        />
+      </div>
+    </section>
 
     <section v-if="detail.data.value" class="section-card">
       <div class="section-title">
@@ -402,7 +426,25 @@ watch(matchNo, loadPage)
   font-size: 13px;
 }
 
+.stat-grid-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.team-context-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
 @media (max-width: 900px) {
+  .stat-grid-6 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .team-context-grid {
+    grid-template-columns: 1fr;
+  }
+
   .compare-grid,
   .insight-grid {
     grid-template-columns: 1fr;
