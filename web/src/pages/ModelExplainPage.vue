@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import EloChart from '@/components/common/EloChart.vue'
+
 const modelLayers = [
   {
     title: '1. 实力基准层',
@@ -81,6 +83,8 @@ const limitations = [
         </li>
       </ol>
     </section>
+
+    <EloChart />
 
     <section class="section-card">
       <div class="section-title">

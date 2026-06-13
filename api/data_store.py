@@ -1232,6 +1232,23 @@ class DashboardDataStore:
         )
 
 
+    def elo_distribution(self) -> list[dict[str, object]]:
+        if self.ratings.empty:
+            return []
+        latest = self.ratings.sort_values("latest_match_date").groupby("team_name").tail(1)
+        latest = latest.sort_values("latest_elo", ascending=False)
+        result: list[dict[str, object]] = []
+        for _, row in latest.iterrows():
+            team = str(row["team_name"])
+            result.append({
+                "team_name": team,
+                "team_name_zh": zh_team_name(team) or team,
+                "elo": float(row["latest_elo"]),
+                "matches_played": int(row["matches_played"]),
+            })
+        return result
+
+
     def _factor_breakdown(
         self,
         score_row: pd.Series,

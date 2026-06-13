@@ -139,6 +139,13 @@ def compare_teams(
     return store.compare_teams(team_a, team_b)
 
 
+
+@app.get("/api/elo/distribution")
+def elo_distribution(
+    store: Annotated[DashboardDataStore, Depends(get_store)],
+) -> list[dict[str, object]]:
+    return store.elo_distribution()
+
 @app.post("/api/simulator/settle", response_model=SimulatorResponse)
 def settle_simulator(
     request: SimulatorRequest,
