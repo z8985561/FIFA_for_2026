@@ -123,6 +123,21 @@ export interface MatchPreviewSource {
   key_player_notes?: string | null
 }
 
+export interface MatchTechStats {
+  home_possession: number
+  away_possession: number
+  home_shots: number
+  away_shots: number
+  home_shots_on_target: number
+  away_shots_on_target: number
+  home_corners: number
+  away_corners: number
+  home_yellow_cards: number
+  away_yellow_cards: number
+  home_red_cards: number
+  away_red_cards: number
+}
+
 export interface MatchDetail {
   match: MatchSummary
   expected_goals: Record<string, number | null>
@@ -131,6 +146,7 @@ export interface MatchDetail {
   home_team_context?: TeamContext | null
   away_team_context?: TeamContext | null
   preview_sources: MatchPreviewSource[]
+  match_tech?: MatchTechStats | null
   factor_breakdown: FactorBreakdown[]
 }
 

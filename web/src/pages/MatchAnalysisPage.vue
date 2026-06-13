@@ -6,6 +6,7 @@ import StatCard from '@/components/common/StatCard.vue'
 import FactorWaterfall from '@/components/match/FactorWaterfall.vue'
 import MatchCompletenessCard from '@/components/match/MatchCompletenessCard.vue'
 import MatchSwitcher from '@/components/match/MatchSwitcher.vue'
+import MatchTechRadar from '@/components/match/MatchTechRadar.vue'
 import ScorelineProbabilityChart from '@/components/match/ScorelineProbabilityChart.vue'
 import PreMatchContextCard from '@/components/match/PreMatchContextCard.vue'
 import ScorelineTable from '@/components/match/ScorelineTable.vue'
@@ -279,6 +280,8 @@ watch(matchNo, loadPage)
         />
       </div>
     </section>
+
+    <MatchTechRadar :tech="detail.data.value?.match_tech" />
 
     <section v-if="detail.data.value" class="section-card">
       <div class="section-title">
