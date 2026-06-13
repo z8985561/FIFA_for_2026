@@ -50,8 +50,8 @@ function percent(value?: number | null) {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xl);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(245, 238, 223, 0.78)),
-    radial-gradient(circle at top right, rgba(200, 88, 72, 0.12), transparent 32%);
+    linear-gradient(145deg, rgba(18, 35, 64, 0.9), rgba(10, 22, 40, 0.78)),
+    radial-gradient(circle at top right, rgba(212, 168, 67, 0.1), transparent 32%);
   box-shadow: var(--shadow-soft);
   transition:
     transform 180ms ease,
@@ -90,8 +90,8 @@ h3 {
   gap: 12px;
   padding: 10px 14px;
   border-radius: 14px;
-  background: rgba(30, 107, 72, 0.1);
-  color: rgb(24, 90, 62);
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
 }
 
 .result-banner strong {

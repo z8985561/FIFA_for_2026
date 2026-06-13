@@ -154,7 +154,7 @@ function scoreVerdict(match: MatchSummary) {
   gap: 6px;
   padding: 14px;
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.62);
+  background: rgba(18, 35, 64, 0.5);
 }
 
 .review-metrics span,

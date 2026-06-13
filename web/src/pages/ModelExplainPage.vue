@@ -107,13 +107,12 @@ const limitations = [
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xl);
   background:
-    linear-gradient(150deg, rgba(255, 250, 240, 0.9), rgba(238, 246, 241, 0.72)),
-    radial-gradient(circle at top right, rgba(223, 180, 102, 0.22), transparent 35%);
+    var(--surface-glass);
   box-shadow: var(--shadow-soft);
 }
 
 .layer-card span {
-  color: var(--color-danger);
+  color: var(--color-accent);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.12em;

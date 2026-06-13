@@ -7,5 +7,6 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import './styles/tokens.css'
+import './styles/el-overrides.css'
 
 createApp(App).use(createPinia()).use(router).use(ElementPlus).mount('#app')

@@ -125,7 +125,7 @@ function percent(value?: number | null) {
   color: var(--color-ink);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(18, 35, 64, 0.5);
   cursor: pointer;
   transition:
     transform 160ms ease,
@@ -212,7 +212,7 @@ function percent(value?: number | null) {
   color: var(--color-ink);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(18, 35, 64, 0.5);
   cursor: pointer;
   transition:
     transform 160ms ease,

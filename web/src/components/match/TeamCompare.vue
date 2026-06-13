@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
   padding: 14px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(18, 35, 64, 0.5);
 }
 
 .stat-card span {

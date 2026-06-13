@@ -60,7 +60,7 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   background:
     linear-gradient(135deg, rgba(45, 117, 109, 0.12), rgba(223, 180, 102, 0.12)),
-    rgba(255, 250, 240, 0.68);
+    rgba(18, 35, 64, 0.65);
   box-shadow: var(--shadow-soft);
 }
 

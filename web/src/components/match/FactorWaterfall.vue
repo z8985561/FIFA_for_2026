@@ -102,7 +102,7 @@ onBeforeUnmount(() => {
   gap: 4px;
   padding: 14px;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(18, 35, 64, 0.5);
 }
 
 .factor-list span {

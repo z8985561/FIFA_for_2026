@@ -14,7 +14,7 @@ const navItems = [
   <div class="app-shell">
     <aside class="side-nav">
       <div class="brand">
-        <span class="brand-kicker">FIFA 2026</span>
+        <span class="brand-kicker">FIFA WORLD CUP 2026</span>
         <strong>世界杯研究看板</strong>
       </div>
       <nav class="nav-list">
@@ -42,7 +42,7 @@ const navItems = [
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 260px 1fr;
   color: var(--color-ink);
 }
 
@@ -50,63 +50,73 @@ const navItems = [
   position: sticky;
   top: 0;
   height: 100vh;
-  padding: 32px 24px;
-  background:
-    linear-gradient(180deg, rgba(22, 45, 54, 0.94), rgba(8, 22, 28, 0.96)),
-    radial-gradient(circle at top left, rgba(223, 180, 102, 0.24), transparent 34%);
-  color: #f7efe0;
+  padding: 30px 22px;
+  background: #081220;
+  border-right: 1px solid rgba(212, 168, 67, 0.12);
+  color: #c8d0d8;
 }
 
 .brand {
   display: grid;
   gap: 8px;
-  margin-bottom: 34px;
+  margin-bottom: 32px;
 }
 
 .brand-kicker {
-  color: var(--color-sand);
-  font-size: 12px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  color: var(--color-accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
 }
 
 .brand strong {
-  font-size: 25px;
-  line-height: 1.15;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #e8e0d0;
 }
 
 .nav-list {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .nav-link {
-  padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  color: rgba(255, 255, 255, 0.74);
+  padding: 10px 14px;
+  border: 1px solid rgba(212, 168, 67, 0.1);
+  border-radius: 10px;
+  color: #8899aa;
   text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.nav-link:hover {
+  color: #d4a843;
+  border-color: rgba(212, 168, 67, 0.25);
 }
 
 .nav-link.router-link-active {
-  color: #11272d;
-  background: var(--color-sand);
-  border-color: var(--color-sand);
+  color: #0a1628;
+  background: linear-gradient(135deg, #d4a843, #c4942e);
+  border-color: #d4a843;
+  font-weight: 700;
 }
 
 .compliance-note {
   position: absolute;
-  left: 24px;
-  right: 24px;
-  bottom: 28px;
-  color: rgba(255, 255, 255, 0.58);
-  line-height: 1.7;
-  font-size: 13px;
+  left: 22px;
+  right: 22px;
+  bottom: 24px;
+  color: rgba(200, 208, 216, 0.4);
+  line-height: 1.6;
+  font-size: 12px;
 }
 
 .main-panel {
   min-width: 0;
-  padding: 32px;
+  padding: 28px;
 }
 
 @media (max-width: 900px) {
@@ -121,11 +131,11 @@ const navItems = [
 
   .compliance-note {
     position: static;
-    margin-top: 24px;
+    margin-top: 20px;
   }
 
   .main-panel {
-    padding: 20px;
+    padding: 18px;
   }
 }
 </style>

@@ -51,7 +51,7 @@ const props = defineProps<{
   padding: 18px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(18, 35, 64, 0.5);
 }
 
 .tc-head {
