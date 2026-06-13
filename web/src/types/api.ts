@@ -255,3 +255,27 @@ export interface MatchReviewRow {
   review_bucket: string
   result_source_name?: string | null
 }
+
+export interface TeamCompareItem {
+  team_name: string
+  team_name_zh: string
+  elo?: number | null
+  fifa_rank?: number | null
+  squad_size?: number | null
+  average_age?: number | null
+  total_caps?: number | null
+  group_advance_probability?: number | null
+  avg_goals_scored?: number | null
+  avg_goals_conceded?: number | null
+  avg_shots?: number | null
+  avg_fouls?: number | null
+  avg_yellow_cards?: number | null
+  avg_red_cards?: number | null
+}
+
+export interface TeamCompareResponse {
+  team_a: TeamCompareItem
+  team_b: TeamCompareItem
+}
+
+

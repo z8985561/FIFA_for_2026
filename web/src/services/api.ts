@@ -10,6 +10,7 @@ import type {
   ScorelineRow,
   SimulatorResponse,
   SimulatorSelection,
+  TeamCompareResponse,
 } from '@/types/api'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -78,4 +79,8 @@ export const dashboardApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  compareTeams: (teamA: string, teamB: string) =>
+    request<TeamCompareResponse>(
+      `/api/teams/compare?team_a=${encodeURIComponent(teamA)}&team_b=${encodeURIComponent(teamB)}`
+    ),
 }

@@ -19,6 +19,7 @@ from .schemas import (
     ScorelineRow,
     SimulatorRequest,
     SimulatorResponse,
+    TeamCompareResponse,
 )
 
 
@@ -128,6 +129,14 @@ def list_group_advance(
     group_name: str | None = None,
 ) -> list[GroupAdvanceRow]:
     return store.list_group_advance(group_name=group_name)
+
+@app.get("/api/teams/compare", response_model=TeamCompareResponse)
+def compare_teams(
+    team_a: str,
+    team_b: str,
+    store: Annotated[DashboardDataStore, Depends(get_store)],
+) -> TeamCompareResponse:
+    return store.compare_teams(team_a, team_b)
 
 
 @app.post("/api/simulator/settle", response_model=SimulatorResponse)

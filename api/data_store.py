@@ -16,6 +16,7 @@ from src.project_paths import (
     MATCH_REVIEW_FEATURES_PATH,
     OFFICIAL_MATCH_RESULTS_2026_PATH,
     PRE_MATCH_CONTEXT_2026_PATH,
+    RATINGS_PATH,
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_VALUE_BETS_PATH,
     TOURNAMENT_SIMULATION_PATH,
@@ -38,6 +39,8 @@ from .schemas import (
     SimulatorCombination,
     SimulatorRequest,
     SimulatorResponse,
+    TeamCompareItem,
+    TeamCompareResponse,
     TeamContext,
 )
 from .team_locale import zh_team_name
@@ -127,6 +130,10 @@ class DashboardDataStore:
     wangyi_squad_stats: pd.DataFrame
     wangyi_match_tech: pd.DataFrame
     pre_match_context: pd.DataFrame
+    ratings: pd.DataFrame
+    match_features: pd.DataFrame
+    groups: pd.DataFrame
+
 
     @classmethod
     def load(cls) -> DashboardDataStore:
@@ -147,6 +154,7 @@ class DashboardDataStore:
             wangyi_squad_stats=_read_table(WANGYI_SQUAD_STATS_2026_PATH),
             wangyi_match_tech=_read_table(WANGYI_MATCH_TECH_2026_PATH),
             pre_match_context=_read_table(PRE_MATCH_CONTEXT_2026_PATH),
+            ratings=_read_table(RATINGS_PATH),
         )
 
     def row_counts(self) -> dict[str, int]:
@@ -1130,6 +1138,99 @@ class DashboardDataStore:
             home_red_cards=int(row["home_red_cards"]),
             away_red_cards=int(row["away_red_cards"]),
         )
+
+    def compare_teams(self, team_a: str, team_b: str) -> "TeamCompareResponse":
+        """Compare two teams across all available metrics."""
+        from .schemas import TeamCompareItem, TeamCompareResponse
+
+        def _build_item(team_name: str) -> TeamCompareItem:
+            name_zh = zh_team_name(team_name) or team_name
+
+            # Elo
+            elo_val = None
+            if not self.ratings.empty:
+                elo_rows = self.ratings[self.ratings["team_name"].eq(team_name)]
+                if not elo_rows.empty:
+                    elo_val = float(elo_rows["latest_elo"].iloc[0])
+
+            # FIFA rank and squad stats from feature store
+            fifa_rank = None
+            squad_size = None
+            average_age = None
+            total_caps = None
+            if not self.match_features.empty:
+                home_rows = self.match_features[self.match_features["home_team"].eq(team_name)]
+                away_rows = self.match_features[self.match_features["away_team"].eq(team_name)]
+                feature_row = None
+                if not home_rows.empty:
+                    feature_row = home_rows.iloc[0]
+                    prefix = "home_"
+                elif not away_rows.empty:
+                    feature_row = away_rows.iloc[0]
+                    prefix = "away_"
+                if feature_row is not None:
+                    fifa_rank = int(feature_row[f"{prefix}fifa_rank"]) if pd.notna(feature_row.get(f"{prefix}fifa_rank")) else None
+                    squad_size = int(feature_row[f"{prefix}squad_size"]) if pd.notna(feature_row.get(f"{prefix}squad_size")) else None
+                    average_age = float(feature_row[f"{prefix}squad_average_age"]) if pd.notna(feature_row.get(f"{prefix}squad_average_age")) else None
+                    total_caps = int(feature_row[f"{prefix}squad_total_caps"]) if pd.notna(feature_row.get(f"{prefix}squad_total_caps")) else None
+
+            # Group advance probability
+            adv_prob = None
+            if not self.groups.empty:
+                ga_rows = self.groups[self.groups["team_name"].eq(team_name)]
+                if not ga_rows.empty:
+                    adv_prob = float(ga_rows["group_advance_probability"].iloc[0])
+
+            # Season stats from wangyi match tech
+            avg_goals_scored = None
+            avg_goals_conceded = None
+            avg_shots = None
+            avg_fouls = None
+            avg_yellow = None
+            avg_red = None
+            if not self.wangyi_match_tech.empty:
+                home_zh = name_zh
+                home_rows = self.wangyi_match_tech[self.wangyi_match_tech["home_team"].eq(home_zh)]
+                away_rows = self.wangyi_match_tech[self.wangyi_match_tech["away_team"].eq(home_zh)]
+                if not home_rows.empty:
+                    tech_row = home_rows.iloc[0]
+                    avg_goals_scored = float(tech_row["home_season_goals"])
+                    avg_goals_conceded = float(tech_row["home_season_goals_conceded"])
+                    avg_shots = float(tech_row["home_season_shots"])
+                    avg_fouls = float(tech_row["home_season_fouls"])
+                    avg_yellow = float(tech_row["home_season_yellow"])
+                    avg_red = float(tech_row["home_season_red"])
+                elif not away_rows.empty:
+                    tech_row = away_rows.iloc[0]
+                    avg_goals_scored = float(tech_row["away_season_goals"])
+                    avg_goals_conceded = float(tech_row["away_season_goals_conceded"])
+                    avg_shots = float(tech_row["away_season_shots"])
+                    avg_fouls = float(tech_row["away_season_fouls"])
+                    avg_yellow = float(tech_row["away_season_yellow"])
+                    avg_red = float(tech_row["away_season_red"])
+
+            return TeamCompareItem(
+                team_name=team_name,
+                team_name_zh=name_zh,
+                elo=elo_val,
+                fifa_rank=fifa_rank,
+                squad_size=squad_size,
+                average_age=average_age,
+                total_caps=total_caps,
+                group_advance_probability=adv_prob,
+                avg_goals_scored=avg_goals_scored,
+                avg_goals_conceded=avg_goals_conceded,
+                avg_shots=avg_shots,
+                avg_fouls=avg_fouls,
+                avg_yellow_cards=avg_yellow,
+                avg_red_cards=avg_red,
+            )
+
+        return TeamCompareResponse(
+            team_a=_build_item(team_a),
+            team_b=_build_item(team_b),
+        )
+
 
     def _factor_breakdown(
         self,

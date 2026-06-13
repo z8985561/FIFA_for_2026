@@ -258,3 +258,26 @@ class SimulatorResponse(BaseModel):
     risk_rating: str
     risk_reasons: list[str]
     combinations: list[SimulatorCombination]
+
+
+class TeamCompareItem(BaseModel):
+    team_name: str
+    team_name_zh: str
+    elo: float | None = None
+    fifa_rank: int | None = None
+    squad_size: int | None = None
+    average_age: float | None = None
+    total_caps: int | None = None
+    group_advance_probability: float | None = None
+    avg_goals_scored: float | None = None
+    avg_goals_conceded: float | None = None
+    avg_shots: float | None = None
+    avg_fouls: float | None = None
+    avg_yellow_cards: float | None = None
+    avg_red_cards: float | None = None
+
+
+class TeamCompareResponse(BaseModel):
+    team_a: TeamCompareItem
+    team_b: TeamCompareItem
+
