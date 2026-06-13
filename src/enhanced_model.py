@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import pickle
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -23,7 +25,10 @@ from .odds_pipeline import prepare_odds_features
 from .probability_calibration import (
     DEFAULT_PROBABILITY_FLOOR,
     DEFAULT_TEMPERATURE,
+    DEFAULT_SHRINKAGE_K,
+    apply_confederation_correction,
     apply_upset_protection,
+    build_confederation_correction_factors,
 )
 from .project_paths import (
     ENHANCED_METRICS_PATH,
@@ -164,7 +169,8 @@ def train_enhanced_model(
     )
     model.fit(X_train, y_train)
 
-    probabilities = apply_upset_protection(model.predict_proba(X_test))
+    raw_probs = model.predict_proba(X_test)
+    probabilities = apply_upset_protection(raw_probs)
     predictions = probabilities.argmax(axis=1)
     metrics = EnhancedMetrics(
         train_matches=len(train_frame),
@@ -187,7 +193,20 @@ def generate_enhanced_predictions(
 ) -> pd.DataFrame:
     features = build_2026_enhanced_features(match_features_2026, historical_matches)
     feature_frame = features[enhanced_feature_columns()]
-    probabilities = apply_upset_protection(model.predict_proba(feature_frame))
+    raw_probs = model.predict_proba(feature_frame)
+
+    # Apply World Cup-specific confederation corrections
+    import pickle
+    wc_path = Path(__file__).resolve().parent.parent / "data" / "processed" / "world_cup_confederation_corrections.pkl"
+    if wc_path.exists():
+        with open(wc_path, "rb") as f:
+            wc_corrections = pickle.load(f)
+        corrected_probs = apply_confederation_correction(
+            raw_probs, features["confederation_pair"], wc_corrections,
+        )
+    else:
+        corrected_probs = raw_probs
+    probabilities = apply_upset_protection(corrected_probs)
     probability_frame = pd.DataFrame(
         probabilities,
         columns=["away_win_probability", "draw_probability", "home_win_probability"],
