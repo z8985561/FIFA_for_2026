@@ -120,6 +120,21 @@ class MatchPreviewSource(BaseModel):
     key_player_notes: str | None = None
 
 
+class MatchTechStats(BaseModel):
+    home_possession: int = 0
+    away_possession: int = 0
+    home_shots: int = 0
+    away_shots: int = 0
+    home_shots_on_target: int = 0
+    away_shots_on_target: int = 0
+    home_corners: int = 0
+    away_corners: int = 0
+    home_yellow_cards: int = 0
+    away_yellow_cards: int = 0
+    home_red_cards: int = 0
+    away_red_cards: int = 0
+
+
 class MatchDetail(BaseModel):
     match: MatchSummary
     expected_goals: dict[str, float | None]
@@ -128,6 +143,7 @@ class MatchDetail(BaseModel):
     home_team_context: TeamContext | None = None
     away_team_context: TeamContext | None = None
     preview_sources: list[MatchPreviewSource] = []
+    match_tech: MatchTechStats | None = None
     factor_breakdown: list[dict[str, float | str | bool | None]]
 
 

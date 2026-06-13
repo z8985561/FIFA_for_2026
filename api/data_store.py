@@ -20,6 +20,7 @@ from src.project_paths import (
     SCORELINE_VALUE_BETS_PATH,
     TOURNAMENT_SIMULATION_PATH,
     WANGYI_COACHES_2026_PATH,
+    WANGYI_MATCH_TECH_2026_PATH,
     WANGYI_SQUAD_STATS_2026_PATH,
 )
 
@@ -30,6 +31,7 @@ from .schemas import (
     MatchPreviewSource,
     MatchReviewRow,
     MatchSummary,
+    MatchTechStats,
     MetadataResponse,
     ScheduleMatch,
     ScorelineRow,
@@ -123,6 +125,7 @@ class DashboardDataStore:
     match_reviews: pd.DataFrame
     wangyi_coaches: pd.DataFrame
     wangyi_squad_stats: pd.DataFrame
+    wangyi_match_tech: pd.DataFrame
     pre_match_context: pd.DataFrame
 
     @classmethod
@@ -142,6 +145,7 @@ class DashboardDataStore:
             match_reviews=match_reviews,
             wangyi_coaches=_read_table(WANGYI_COACHES_2026_PATH),
             wangyi_squad_stats=_read_table(WANGYI_SQUAD_STATS_2026_PATH),
+            wangyi_match_tech=_read_table(WANGYI_MATCH_TECH_2026_PATH),
             pre_match_context=_read_table(PRE_MATCH_CONTEXT_2026_PATH),
         )
 
@@ -157,6 +161,7 @@ class DashboardDataStore:
             "official_results": len(self.official_results),
             "match_reviews": len(self.match_reviews),
             "wangyi_coaches": len(self.wangyi_coaches),
+            "wangyi_match_tech": len(self.wangyi_match_tech),
             "wangyi_squad_stats": len(self.wangyi_squad_stats),
             "pre_match_context": len(self.pre_match_context),
         }
@@ -301,6 +306,7 @@ class DashboardDataStore:
             home_team_context=self._team_context(match.home_team),
             away_team_context=self._team_context(match.away_team),
             preview_sources=self._preview_sources(match_no),
+            match_tech=self._match_tech(match_no),
             factor_breakdown=self._factor_breakdown(score_row, enhanced_row),
         )
 
@@ -1085,6 +1091,38 @@ class DashboardDataStore:
                 )
             )
         return sources
+
+    def _match_tech(self, match_no: int) -> MatchTechStats | None:
+        if self.wangyi_match_tech.empty or self.fixtures.empty:
+            return None
+        fixture = self.fixtures[self.fixtures["match_no"].eq(match_no)]
+        if fixture.empty:
+            return None
+        home_en = str(fixture["home_team"].iloc[0])
+        away_en = str(fixture["away_team"].iloc[0])
+        home_zh = zh_team_name(home_en) or home_en
+        away_zh = zh_team_name(away_en) or away_en
+        tech = self.wangyi_match_tech.loc[
+            (self.wangyi_match_tech["home_team"].eq(home_zh))
+            & (self.wangyi_match_tech["away_team"].eq(away_zh))
+        ]
+        if tech.empty:
+            return None
+        row = tech.iloc[0]
+        return MatchTechStats(
+            home_possession=int(row["home_possession"]),
+            away_possession=int(row["away_possession"]),
+            home_shots=int(row["home_shots"]),
+            away_shots=int(row["away_shots"]),
+            home_shots_on_target=int(row["home_shots_on_target"]),
+            away_shots_on_target=int(row["away_shots_on_target"]),
+            home_corners=int(row["home_corners"]),
+            away_corners=int(row["away_corners"]),
+            home_yellow_cards=int(row["home_yellow_cards"]),
+            away_yellow_cards=int(row["away_yellow_cards"]),
+            home_red_cards=int(row["home_red_cards"]),
+            away_red_cards=int(row["away_red_cards"]),
+        )
 
     def _factor_breakdown(
         self,
