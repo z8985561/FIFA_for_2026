@@ -41,6 +41,7 @@ MAX_LINEUP_LOG_ADJUSTMENT = 0.12
 DEFAULT_MARKET_OUTCOME_ANCHOR_WEIGHT = 0.25
 DEFAULT_MARKET_TOTAL_GOALS_ANCHOR_WEIGHT = 0.35
 GROUP_OPENER_MISMATCH_ELO_THRESHOLD = 150.0
+GROUP_OPENER_MISMATCH_ELO_MAX = 300.0
 GROUP_OPENER_FAVORITE_ATTACK_LOG_BOOST = 0.045
 SUSPENSION_IMPACT_WEIGHT = 0.75
 PRE_MATCH_CONTEXT_LINEUP_WEIGHT = 0.2
@@ -1065,6 +1066,7 @@ def apply_group_opener_mismatch_adjustment(
     home_team: str,
     away_team: str,
     elo_threshold: float = GROUP_OPENER_MISMATCH_ELO_THRESHOLD,
+    elo_max: float = GROUP_OPENER_MISMATCH_ELO_MAX,
     favorite_attack_log_boost: float = GROUP_OPENER_FAVORITE_ATTACK_LOG_BOOST,
 ) -> dict[str, object]:
     try:
@@ -1076,7 +1078,7 @@ def apply_group_opener_mismatch_adjustment(
 
     favorite_elo_edge = abs(elo_difference)
     is_group_opener = str(stage) == "Group Stage" and round_number == 1
-    applied = is_group_opener and favorite_elo_edge >= elo_threshold
+    applied = is_group_opener and elo_threshold <= favorite_elo_edge <= elo_max
     home_log_adjustment = 0.0
     away_log_adjustment = 0.0
     favorite_team = None
