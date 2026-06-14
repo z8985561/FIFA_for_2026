@@ -20,6 +20,7 @@ from .schemas import (
     SimulatorRequest,
     SimulatorResponse,
     TeamCompareResponse,
+    TeamProfileResponse,
 )
 
 
@@ -145,6 +146,15 @@ def elo_distribution(
     store: Annotated[DashboardDataStore, Depends(get_store)],
 ) -> list[dict[str, object]]:
     return store.elo_distribution()
+
+
+@app.get("/api/teams/{team_name}", response_model=TeamProfileResponse)
+def team_profile(
+    team_name: str,
+    store: Annotated[DashboardDataStore, Depends(get_store)],
+) -> TeamProfileResponse:
+    return store.team_profile(team_name)
+
 
 @app.post("/api/simulator/settle", response_model=SimulatorResponse)
 def settle_simulator(

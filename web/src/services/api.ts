@@ -11,6 +11,7 @@ import type {
   SimulatorResponse,
   SimulatorSelection,
   TeamCompareResponse,
+  TeamProfileResponse,
 } from '@/types/api'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -83,4 +84,6 @@ export const dashboardApi = {
     request<TeamCompareResponse>(
       `/api/teams/compare?team_a=${encodeURIComponent(teamA)}&team_b=${encodeURIComponent(teamB)}`
     ),
+  teamProfile: (name: string) =>
+    request<TeamProfileResponse>(`/api/teams/${encodeURIComponent(name)}`),
 }

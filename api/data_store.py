@@ -23,6 +23,7 @@ from src.project_paths import (
     WANGYI_COACHES_2026_PATH,
     WANGYI_MATCH_TECH_2026_PATH,
     WANGYI_SQUAD_STATS_2026_PATH,
+    WORLD_CUP_TEAMS_2026_PATH,
 )
 
 from .schemas import (
@@ -131,6 +132,8 @@ class DashboardDataStore:
     wangyi_match_tech: pd.DataFrame
     pre_match_context: pd.DataFrame
     ratings: pd.DataFrame
+    world_cup_teams: pd.DataFrame
+    world_cup_teams: pd.DataFrame
     match_features: pd.DataFrame
     groups: pd.DataFrame
 
@@ -155,6 +158,7 @@ class DashboardDataStore:
             wangyi_match_tech=_read_table(WANGYI_MATCH_TECH_2026_PATH),
             pre_match_context=_read_table(PRE_MATCH_CONTEXT_2026_PATH),
             ratings=_read_table(RATINGS_PATH),
+            world_cup_teams=_read_table(WORLD_CUP_TEAMS_2026_PATH),
         )
 
     def row_counts(self) -> dict[str, int]:
@@ -1247,6 +1251,185 @@ class DashboardDataStore:
                 "matches_played": int(row["matches_played"]),
             })
         return result
+
+
+
+    def team_profile(self, team_name: str) -> "TeamProfileResponse":
+        """Build comprehensive team profile."""
+        from .schemas import TeamProfileResponse, TeamProfileSquadPlayer
+
+        name_zh = zh_team_name(team_name) or team_name
+
+        # Basic info from world_cup_teams
+        team_row = None
+        if not self.world_cup_teams.empty:
+            rows = self.world_cup_teams[self.world_cup_teams["team_name"].eq(team_name)]
+            if not rows.empty:
+                team_row = rows.iloc[0]
+
+        group_name = str(team_row["group_name"]) if team_row is not None else ""
+        confederation = str(team_row["confederation"]) if team_row is not None else ""
+
+        # Elo
+        elo_val = None
+        if not self.ratings.empty:
+            er = self.ratings[self.ratings["team_name"].eq(team_name)]
+            if not er.empty:
+                elo_val = float(er["latest_elo"].iloc[0])
+
+        # FIFA rank
+        fifa_rank = int(team_row["fifa_rank"]) if team_row is not None and "fifa_rank" in team_row.index else None
+
+        # Standings from official results
+        gf = ga = pts = mp = 0
+        if not self.official_results.empty:
+            off = self.official_results[self.official_results["completed"]==True]
+            for _, r in off.iterrows():
+                if r["home_team"] == team_name:
+                    gf += int(r["home_score"]) if pd.notna(r["home_score"]) else 0
+                    ga += int(r["away_score"]) if pd.notna(r["away_score"]) else 0
+                    pts += 3 if r["home_score"] > r["away_score"] else (1 if r["home_score"] == r["away_score"] else 0)
+                    mp += 1
+                elif r["away_team"] == team_name:
+                    gf += int(r["away_score"]) if pd.notna(r["away_score"]) else 0
+                    ga += int(r["home_score"]) if pd.notna(r["home_score"]) else 0
+                    pts += 3 if r["away_score"] > r["home_score"] else (1 if r["away_score"] == r["home_score"] else 0)
+                    mp += 1
+
+        # Group advance probability
+        adv_prob = None
+        if not self.groups.empty:
+            gr = self.groups[self.groups["team_name"].eq(team_name)]
+            if not gr.empty:
+                adv_prob = float(gr["group_advance_probability"].iloc[0])
+
+        # Stage probabilities from tournament simulation
+        stage_probs = {}
+        if not self.tournament.empty:
+            tr = self.tournament[self.tournament["team_name"].eq(team_name)]
+            if not tr.empty:
+                row = tr.iloc[0]
+                for col in tr.columns:
+                    if "probability" in col and col != "simulations":
+                        stage_probs[col.replace("_probability", "")] = float(row[col])
+
+        # Recent form (last 10 matches)
+        recent_form = []
+        if not self.official_results.empty:
+            tm = self.official_results[
+                (self.official_results["home_team"]==team_name) | (self.official_results["away_team"]==team_name)
+            ]
+            tm = tm[tm["completed"]==True].sort_values("date_utc", ascending=False).head(10)
+            for _, r in tm.iterrows():
+                if r["home_team"] == team_name:
+                    h, a = r["home_score"], r["away_score"]
+                else:
+                    h, a = r["away_score"], r["home_score"]
+                h = int(h) if pd.notna(h) else 0
+                a = int(a) if pd.notna(a) else 0
+                if h > a: recent_form.append("W")
+                elif h < a: recent_form.append("L")
+                else: recent_form.append("D")
+
+        # Completed and upcoming matches
+        completed_matches = []
+        upcoming_matches = []
+        if not self.fixtures.empty:
+            tm = self.fixtures[
+                (self.fixtures["home_team"]==team_name) | (self.fixtures["away_team"]==team_name)
+            ].sort_values("date_et")
+            for _, r in tm.iterrows():
+                mn = int(r["match_no"])
+                is_home = r["home_team"] == team_name
+                opp = r["away_team"] if is_home else r["home_team"]
+                opp_zh = zh_team_name(opp) or opp
+                entry = {
+                    "match_no": mn,
+                    "home_team": r["home_team"],
+                    "away_team": r["away_team"],
+                    "home_team_zh": zh_team_name(r["home_team"]) or r["home_team"],
+                    "away_team_zh": zh_team_name(r["away_team"]) or r["away_team"],
+                    "date_et": str(r["date_et"]) if pd.notna(r["date_et"]) else None,
+                    "is_home": is_home,
+                    "completed": False,
+                    "home_score": None,
+                    "away_score": None,
+                }
+                # Check official results
+                if not self.official_results.empty:
+                    off_r = self.official_results[
+                        (self.official_results["home_team"]==r["home_team"]) &
+                        (self.official_results["away_team"]==r["away_team"])
+                    ]
+                    if not off_r.empty:
+                        o = off_r.iloc[0]
+                        if o["completed"]:
+                            entry["completed"] = True
+                            entry["home_score"] = int(o["home_score"]) if pd.notna(o["home_score"]) else None
+                            entry["away_score"] = int(o["away_score"]) if pd.notna(o["away_score"]) else None
+                if entry["completed"]:
+                    completed_matches.append(entry)
+                else:
+                    upcoming_matches.append(entry)
+
+        # Squad
+        squad: list[dict[str, object]] = []
+        if not self.wangyi_squad_stats.empty:
+            sq = self.wangyi_squad_stats[self.wangyi_squad_stats["team_name"].eq(team_name)]
+            sq = sq.sort_values(["position", "shirt_no"])
+            for _, r in sq.iterrows():
+                squad.append(TeamProfileSquadPlayer(
+                    shirt_no=str(r.get("shirt_no", "")),
+                    player_name=str(r.get("name_en", "")),
+                    player_name_zh=str(r.get("name_zh", "")),
+                    position=str(r.get("position", "")),
+                    age=int(r.get("age", 0)),
+                    goals=int(r.get("goals", 0)),
+                    assists=int(r.get("assists", 0)),
+                    yellow_cards=int(r.get("yellow_cards", 0)),
+                    red_cards=int(r.get("red_cards", 0)),
+                    is_suspended=bool(r.get("is_suspended", False)),
+                ))
+
+        # Tournament stats
+        tstats: dict[str, float | None] = {
+            "avg_goals_scored": None, "avg_goals_conceded": None,
+            "avg_shots": None, "avg_fouls": None,
+            "avg_yellow": None, "avg_red": None,
+        }
+        if not self.wangyi_match_tech.empty:
+            home_zh = name_zh
+            home_rows = self.wangyi_match_tech[self.wangyi_match_tech["home_team"].eq(home_zh)]
+            away_rows = self.wangyi_match_tech[self.wangyi_match_tech["away_team"].eq(home_zh)]
+            tech_row = None
+            if not home_rows.empty:
+                tech_row = home_rows.iloc[0]
+                prefix = "home_"
+            elif not away_rows.empty:
+                tech_row = away_rows.iloc[0]
+                prefix = "away_"
+            if tech_row is not None:
+                tstats["avg_goals_scored"] = float(tech_row[f"{prefix}season_goals"])
+                tstats["avg_goals_conceded"] = float(tech_row[f"{prefix}season_goals_conceded"])
+                tstats["avg_shots"] = float(tech_row[f"{prefix}season_shots"])
+                tstats["avg_fouls"] = float(tech_row[f"{prefix}season_fouls"])
+                tstats["avg_yellow"] = float(tech_row[f"{prefix}season_yellow"])
+                tstats["avg_red"] = float(tech_row[f"{prefix}season_red"])
+
+        return TeamProfileResponse(
+            team_name=team_name, team_name_zh=name_zh,
+            group_name=group_name, confederation=confederation,
+            fifa_rank=fifa_rank, elo=elo_val,
+            matches_played=mp, goals_for=gf, goals_against=ga,
+            goal_difference=gf-ga, points=pts,
+            group_advance_probability=adv_prob,
+            stage_probabilities=stage_probs,
+            recent_form=recent_form,
+            completed_matches=completed_matches,
+            upcoming_matches=upcoming_matches,
+            squad=squad,
+            tournament_stats=tstats,
+        )
 
 
     def _factor_breakdown(

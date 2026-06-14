@@ -281,3 +281,36 @@ class TeamCompareResponse(BaseModel):
     team_a: TeamCompareItem
     team_b: TeamCompareItem
 
+class TeamProfileSquadPlayer(BaseModel):
+    shirt_no: str = ""
+    player_name: str
+    player_name_zh: str = ""
+    position: str
+    age: int = 0
+    goals: int = 0
+    assists: int = 0
+    yellow_cards: int = 0
+    red_cards: int = 0
+    is_suspended: bool = False
+
+
+class TeamProfileResponse(BaseModel):
+    team_name: str
+    team_name_zh: str
+    group_name: str
+    confederation: str
+    fifa_rank: int | None = None
+    elo: float | None = None
+    matches_played: int = 0
+    goals_for: int = 0
+    goals_against: int = 0
+    goal_difference: int = 0
+    points: int = 0
+    group_advance_probability: float | None = None
+    stage_probabilities: dict[str, float] = {}
+    recent_form: list[str] = []
+    completed_matches: list[dict[str, object]] = []
+    upcoming_matches: list[dict[str, object]] = []
+    squad: list[TeamProfileSquadPlayer] = []
+    tournament_stats: dict[str, float | None] = {}
+

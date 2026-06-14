@@ -279,3 +279,57 @@ export interface TeamCompareResponse {
 }
 
 
+
+export interface TeamProfileSquadPlayer {
+  shirt_no: string
+  player_name: string
+  player_name_zh: string
+  position: string
+  age: number
+  goals: number
+  assists: number
+  yellow_cards: number
+  red_cards: number
+  is_suspended: boolean
+}
+
+export interface TeamProfileResponse {
+  team_name: string
+  team_name_zh: string
+  group_name: string
+  confederation: string
+  fifa_rank?: number | null
+  elo?: number | null
+  matches_played: number
+  goals_for: number
+  goals_against: number
+  goal_difference: number
+  points: number
+  group_advance_probability?: number | null
+  stage_probabilities: Record<string, number>
+  recent_form: readonly string[]
+  completed_matches: ReadonlyArray<{
+    match_no: number
+    home_team: string
+    away_team: string
+    home_team_zh: string
+    away_team_zh: string
+    date_et?: string | null
+    is_home: boolean
+    completed: boolean
+    home_score?: number | null
+    away_score?: number | null
+  }>
+  upcoming_matches: ReadonlyArray<{
+    match_no: number
+    home_team: string
+    away_team: string
+    home_team_zh: string
+    away_team_zh: string
+    date_et?: string | null
+    is_home: boolean
+    completed: boolean
+  }>
+  squad: readonly TeamProfileSquadPlayer[]
+  tournament_stats: Record<string, number | null>
+}
