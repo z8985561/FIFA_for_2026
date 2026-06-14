@@ -46,6 +46,10 @@ from .project_paths import (
     TEAMS_PATH,
     WANGYI_COACHES_2026_PATH,
     WANGYI_SQUAD_STATS_2026_PATH,
+    PRE_MATCH_CONTEXT_2026_PATH,
+    WANGYI_MATCH_TECH_2026_PATH,
+    WANGYI_MATCH_PLAYERS_2026_PATH,
+    MATCH_REVIEW_FEATURES_PATH,
     WORLD_CUP_TEAMS_2026_PATH,
 )
 from .score_odds_pipeline import prepare_score_odds_features
@@ -56,6 +60,12 @@ from .world_cup_identity import prepare_world_cup_identity_data
 
 DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 DEFAULT_SCHEMA = "research"
+
+APIFOOTBALL_DIR = Path("data/processed/apifootball")
+APIFOOTBALL_FIXTURES_PATH = APIFOOTBALL_DIR / "apifootball_fixtures.parquet"
+APIFOOTBALL_STATISTICS_PATH = APIFOOTBALL_DIR / "apifootball_statistics.parquet"
+APIFOOTBALL_EVENTS_PATH = APIFOOTBALL_DIR / "apifootball_events.parquet"
+
 
 HISTORICAL_FEATURE_STORE_ID_COLUMNS = [
     "match_id",
@@ -1639,6 +1649,13 @@ def read_processed_frames() -> dict[str, pd.DataFrame]:
         "scoreline_value_bets": read_scoreline_value_bets_frame(),
         "wangyi_coaches_2026": read_optional_parquet(WANGYI_COACHES_2026_PATH),
         "wangyi_squad_stats_2026": read_optional_parquet(WANGYI_SQUAD_STATS_2026_PATH),
+        "wangyi_match_tech": read_optional_parquet(WANGYI_MATCH_TECH_2026_PATH),
+        "wangyi_match_players": read_optional_parquet(WANGYI_MATCH_PLAYERS_2026_PATH),
+        "pre_match_context": read_optional_parquet(PRE_MATCH_CONTEXT_2026_PATH),
+        "match_review_features": read_optional_parquet(MATCH_REVIEW_FEATURES_PATH),
+        "apifootball_fixtures": read_optional_parquet(APIFOOTBALL_FIXTURES_PATH),
+        "apifootball_statistics": read_optional_parquet(APIFOOTBALL_STATISTICS_PATH),
+        "apifootball_events": read_optional_parquet(APIFOOTBALL_EVENTS_PATH),
     }
 
 
@@ -1674,7 +1691,9 @@ def copy_table(
     table: str,
     frame: pd.DataFrame,
 ) -> None:
-    columns = POSTGRES_TABLE_COLUMNS[table]
+    columns = POSTGRES_TABLE_COLUMNS.get(table)
+    if columns is None:
+        columns = [c for c in frame.columns]
     buffer = dataframe_to_copy_buffer(frame, columns)
     column_list = ", ".join(quote_identifier(column) for column in columns)
     copy_sql = (
@@ -1777,6 +1796,16 @@ def sync_to_postgres(config: PostgresConfig | None = None) -> dict[str, int]:
         for table, frame in frames.items():
             if frame.empty:
                 continue
+            columns = POSTGRES_TABLE_COLUMNS.get(table)
+            if columns is None:
+                columns = [c for c in frame.columns]
+                with connection.cursor() as cursor:
+                    cols_def = ", ".join(f"{quote_identifier(c)} text" for c in columns)
+                    cursor.execute(
+                        f"CREATE TABLE IF NOT EXISTS {qualified_table(config.schema, table)} "
+                        f"({cols_def})"
+                    )
+                connection.commit()
             copy_table(connection, config.schema, table, frame)
 
         counts: dict[str, int] = {}
@@ -1788,6 +1817,67 @@ def sync_to_postgres(config: PostgresConfig | None = None) -> dict[str, int]:
         return counts
     finally:
         connection.close()
+
+
+
+
+def _sync_wangyi_match_tech(conn: "psycopg.Connection[Any]", schema: str) -> None:
+    """Sync Wangyi match tech stats to Postgres."""
+    path = WANGYI_MATCH_TECH_2026_PATH
+    if not path.exists():
+        print("  wangyi_match_tech: skip (file not found)")
+        return
+    df = pd.read_parquet(path)
+    _write_table(conn, df, "wangyi_match_tech", schema=schema)
+    print(f"  wangyi_match_tech: {len(df)} rows")
+
+
+def _sync_wangyi_match_players(conn: "psycopg.Connection[Any]", schema: str) -> None:
+    """Sync Wangyi player events to Postgres."""
+    path = WANGYI_MATCH_PLAYERS_2026_PATH
+    if not path.exists():
+        print("  wangyi_match_players: skip (file not found)")
+        return
+    df = pd.read_parquet(path)
+    _write_table(conn, df, "wangyi_match_players", schema=schema)
+    print(f"  wangyi_match_players: {len(df)} rows")
+
+
+def _sync_pre_match_context(conn: "psycopg.Connection[Any]", schema: str) -> None:
+    """Sync Firecrawl pre-match context to Postgres."""
+    path = PRE_MATCH_CONTEXT_2026_PATH
+    if not path.exists():
+        print("  pre_match_context: skip (file not found)")
+        return
+    df = pd.read_parquet(path)
+    _write_table(conn, df, "pre_match_context", schema=schema)
+    print(f"  pre_match_context: {len(df)} rows")
+
+
+def _sync_match_review_features(conn: "psycopg.Connection[Any]", schema: str) -> None:
+    """Sync match review features to Postgres."""
+    path = MATCH_REVIEW_FEATURES_PATH
+    if not path.exists():
+        print("  match_review_features: skip (file not found)")
+        return
+    df = pd.read_parquet(path)
+    _write_table(conn, df, "match_review_features", schema=schema)
+    print(f"  match_review_features: {len(df)} rows")
+
+
+def _sync_apifootball(conn: "psycopg.Connection[Any]", schema: str) -> None:
+    """Sync API-Football data to Postgres."""
+    for name, path in [
+        ("apifootball_fixtures", Path("data/processed/apifootball/apifootball_fixtures.parquet")),
+        ("apifootball_statistics", Path("data/processed/apifootball/apifootball_statistics.parquet")),
+        ("apifootball_events", Path("data/processed/apifootball/apifootball_events.parquet")),
+    ]:
+        if not path.exists():
+            print(f"  {name}: skip (file not found)")
+            continue
+        df = pd.read_parquet(path)
+        _write_table(conn, df, name, schema=schema)
+        print(f"  {name}: {len(df)} rows")
 
 
 def main() -> None:
