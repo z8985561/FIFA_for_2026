@@ -104,6 +104,10 @@ onMounted(async () => {
   window.addEventListener('resize', initOrUpdate)
 })
 
+watch([() => props.teamA, () => props.teamB], async () => {
+  await load()
+})
+
 watch(data, () => {
   if (data.value) initOrUpdate()
 })
