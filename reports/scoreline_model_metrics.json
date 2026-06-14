@@ -1,10 +1,10 @@
 {
   "train_matches": 39498,
   "test_matches": 9875,
-  "feature_count": 94,
+  "feature_count": 98,
   "dixon_coles_rho": -0.0475,
-  "home_goal_mae": 1.0499326401549103,
-  "away_goal_mae": 0.8489564287767544,
-  "home_poisson_deviance": 1.2227762327581508,
-  "away_poisson_deviance": 1.1706309129015458
+  "home_goal_mae": 1.0499326401651774,
+  "away_goal_mae": 0.8489564287768304,
+  "home_poisson_deviance": 1.2227762327868357,
+  "away_poisson_deviance": 1.170630912901722
 }

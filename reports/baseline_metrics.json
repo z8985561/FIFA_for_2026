@@ -1,0 +1,7 @@
+{
+  "train_matches": 39498,
+  "test_matches": 9875,
+  "accuracy": 0.5922025316455696,
+  "log_loss": 0.8862831223165271,
+  "brier_score": 0.5216661322326496
+}

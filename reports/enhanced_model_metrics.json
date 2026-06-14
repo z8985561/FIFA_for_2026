@@ -1,0 +1,11 @@
+{
+  "train_matches": 39498,
+  "test_matches": 9875,
+  "accuracy": 0.597873417721519,
+  "log_loss": 0.8768636863413226,
+  "brier_score": 0.5151848684356589,
+  "feature_count": 98,
+  "probability_temperature": 1.12,
+  "probability_floor": 0.04,
+  "model_type": "LogisticRegression"
+}
