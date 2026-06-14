@@ -277,8 +277,15 @@ def build_2026_enhanced_features(
                 f"away_{metric}_last_{window}"
             ].fillna(default_value)
 
-    features["fifa_rank_diff"] = (features.get("away_fifa_rank", 50) - features.get("home_fifa_rank", 50)).fillna(0)
-    features["squad_size_diff"] = (features.get("away_squad_size", 23) - features.get("home_squad_size", 23)).fillna(0)
-    features["squad_age_diff"] = (features.get("away_squad_average_age", 26) - features.get("home_squad_average_age", 26)).fillna(0)
-    features["squad_caps_diff"] = (features.get("away_squad_total_caps", 500) - features.get("home_squad_total_caps", 500)).fillna(0)
+    for col_name, away_col, home_col, default in [
+        ("fifa_rank_diff", "away_fifa_rank", "home_fifa_rank", 50),
+        ("squad_size_diff", "away_squad_size", "home_squad_size", 23),
+        ("squad_age_diff", "away_squad_average_age", "home_squad_average_age", 26),
+        ("squad_caps_diff", "away_squad_total_caps", "home_squad_total_caps", 500),
+    ]:
+        av = features[away_col] if away_col in features.columns else default
+        hv = features[home_col] if home_col in features.columns else default
+        features[col_name] = (pd.Series(av) if not isinstance(av, pd.Series) else av).sub(
+            pd.Series(hv) if not isinstance(hv, pd.Series) else hv
+        ).fillna(0)
     return add_confederation_features(add_form_differences(features))

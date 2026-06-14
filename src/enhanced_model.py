@@ -55,6 +55,7 @@ class EnhancedMetrics:
     feature_count: int
     probability_temperature: float
     probability_floor: float
+    model_type: str = "LogisticRegression"
 
 
 @dataclass(frozen=True)
@@ -187,6 +188,7 @@ def train_enhanced_model(
         feature_count=len(columns),
         probability_temperature=DEFAULT_TEMPERATURE,
         probability_floor=DEFAULT_PROBABILITY_FLOOR,
+        model_type="LogisticRegression",
     )
     return model, metrics
 
