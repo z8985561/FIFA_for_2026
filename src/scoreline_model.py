@@ -23,6 +23,7 @@ from .feature_store import prepare_match_feature_store
 from .lineups_pipeline import TEAM_NAME_ZH, prepare_predicted_lineups
 from .project_paths import (
     MATCH_FEATURE_STORE_2026_PATH,
+    OFFICIAL_MATCH_RESULTS_2026_PATH,
     MATCHES_PATH,
     PRE_MATCH_CONTEXT_2026_PATH,
     PREDICTED_LINEUPS_PATH,
@@ -998,6 +999,62 @@ def apply_pre_match_context_goal_rate_adjustment(
     }
 
 
+def apply_must_win_pressure_adjustment(
+    *,
+    home_goal_rate: float,
+    away_goal_rate: float,
+    home_team: str,
+    away_team: str,
+    home_elo: float,
+    away_elo: float,
+    home_points: int,
+    away_points: int,
+    home_played: int,
+    away_played: int,
+    stage: str,
+) -> dict[str, float]:
+    """Boost expected goals for strong teams under group-stage pressure.
+
+    Trigger: Group Stage match where a team with Elo advantage >= 100
+    has fewer than 3 points after at least 1 match played.
+
+    Boost factor: home team attack *= 1.15 if triggered.
+    """
+    MUST_WIN_ELO_GAP = 100.0
+    MUST_WIN_MIN_PLAYED = 1
+    MUST_WIN_MAX_POINTS = 2
+    MUST_WIN_BOOST = 1.15
+
+    boosted_home = home_goal_rate
+    boosted_away = away_goal_rate
+    home_pressure = False
+    away_pressure = False
+
+    if stage == "Group Stage":
+        if (
+            home_elo > away_elo + MUST_WIN_ELO_GAP
+            and home_played >= MUST_WIN_MIN_PLAYED
+            and home_points <= MUST_WIN_MAX_POINTS
+        ):
+            boosted_home *= MUST_WIN_BOOST
+            home_pressure = True
+
+        if (
+            away_elo > home_elo + MUST_WIN_ELO_GAP
+            and away_played >= MUST_WIN_MIN_PLAYED
+            and away_points <= MUST_WIN_MAX_POINTS
+        ):
+            boosted_away *= MUST_WIN_BOOST
+            away_pressure = True
+
+    return {
+        "home_must_win_pressure": home_pressure,
+        "away_must_win_pressure": away_pressure,
+        "home_expected_goals": float(boosted_home),
+        "away_expected_goals": float(boosted_away),
+    }
+
+
 def apply_group_opener_mismatch_adjustment(
     *,
     home_goal_rate: float,
@@ -1436,6 +1493,35 @@ def build_scoreline_analysis(
             home_context=home_context,
             away_context=away_context,
         )
+        # Compute standings for must-win pressure from official results
+        standings: dict[str, dict[str, int]] = {}
+        if OFFICIAL_MATCH_RESULTS_2026_PATH.exists():
+            off_results = pd.read_parquet(OFFICIAL_MATCH_RESULTS_2026_PATH)
+            completed = off_results[off_results["completed"] == True]
+            for _, fr in completed.iterrows():
+                for t, gf, ga in [(fr["home_team"], fr["home_score"], fr["away_score"]),
+                                   (fr["away_team"], fr["away_score"], fr["home_score"])]:
+                    if pd.notna(gf) and pd.notna(ga):
+                        t = str(t)
+                        if t not in standings: standings[t] = {"pts": 0, "played": 0}
+                        standings[t]["pts"] += 3 if int(gf) > int(ga) else (1 if int(gf) == int(ga) else 0)
+                        standings[t]["played"] += 1
+        hs = standings.get(str(row.home_team), {"pts": 0, "played": 0})
+        aws = standings.get(str(row.away_team), {"pts": 0, "played": 0})
+
+        pressure_adjustment = apply_must_win_pressure_adjustment(
+            home_goal_rate=float(preview_adjustment["home_expected_goals"]),
+            away_goal_rate=float(preview_adjustment["away_expected_goals"]),
+            home_team=str(row.home_team),
+            away_team=str(row.away_team),
+            home_elo=float(getattr(row, "home_latest_elo", 1500)),
+            away_elo=float(getattr(row, "away_latest_elo", 1500)),
+            home_points=hs["pts"],
+            away_points=aws["pts"],
+            home_played=hs["played"],
+            away_played=aws["played"],
+            stage=row.stage,
+        )
         opener_adjustment = apply_group_opener_mismatch_adjustment(
             home_goal_rate=float(preview_adjustment["home_expected_goals"]),
             away_goal_rate=float(preview_adjustment["away_expected_goals"]),
@@ -1499,6 +1585,8 @@ def build_scoreline_analysis(
                     "away_suspended_players_zh": away_suspensions["suspended_players_zh"],
                     "home_preview_goal_factor": preview_adjustment["home_preview_goal_factor"],
                     "away_preview_goal_factor": preview_adjustment["away_preview_goal_factor"],
+                    "home_must_win_pressure": pressure_adjustment["home_must_win_pressure"],
+                    "away_must_win_pressure": pressure_adjustment["away_must_win_pressure"],
                     "home_preview_log_adjustment": preview_adjustment[
                         "home_preview_log_adjustment"
                     ],
