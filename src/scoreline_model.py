@@ -42,6 +42,7 @@ DEFAULT_MARKET_OUTCOME_ANCHOR_WEIGHT = 0.25
 DEFAULT_MARKET_TOTAL_GOALS_ANCHOR_WEIGHT = 0.35
 GROUP_OPENER_MISMATCH_ELO_THRESHOLD = 150.0
 GROUP_OPENER_MISMATCH_ELO_MAX = 300.0
+MATCH_ROUND_DRAW_BOOST: dict[int, float] = {1: 1.8, 2: 1.3, 3: 1.0}
 GROUP_OPENER_FAVORITE_ATTACK_LOG_BOOST = 0.045
 SUSPENSION_IMPACT_WEIGHT = 0.75
 PRE_MATCH_CONTEXT_LINEUP_WEIGHT = 0.2
@@ -1407,6 +1408,38 @@ def inflate_scoreline_probability(
     return adjusted
 
 
+
+def apply_match_round_draw_adjustment(
+    matrix: pd.DataFrame,
+    group_match_round: object,
+    *,
+    boost_map: dict[int, float] | None = None,
+) -> pd.DataFrame:
+    """Boost draw probabilities based on group stage round.
+
+    Round 1: ×1.8 (highest draw rate — teams cautious early)
+    Round 2: ×1.3 (moderate)
+    Round 3: ×1.0 (no boost — teams must win)
+    """
+    if boost_map is None:
+        boost_map = MATCH_ROUND_DRAW_BOOST
+    try:
+        round_num = int(group_match_round)
+    except (TypeError, ValueError):
+        round_num = 0
+    factor = boost_map.get(round_num, 1.0)
+    if factor == 1.0:
+        return matrix
+
+    working = matrix.copy()
+    # Boost draw cells (home_goals == away_goals) by factor
+    draw_mask = working["home_goals"] == working["away_goals"]
+    working.loc[draw_mask, "probability"] *= factor
+    # Renormalize
+    working["probability"] /= working["probability"].sum()
+    return working
+
+
 def build_scoreline_analysis(
     fixture_features: pd.DataFrame,
     home_model: object,
@@ -1544,6 +1577,10 @@ def build_scoreline_analysis(
             match_no=int(row.match_no),
         )
         matrix = apply_market_scoreline_constraints(matrix, market_constraint)
+        matrix = apply_match_round_draw_adjustment(
+            matrix,
+            getattr(row, "group_match_round", None),
+        )
         summary = matrix_summary(matrix)
         top_matrix = matrix.sort_values("probability", ascending=False).head(top_scores)
         for rank, score_row in enumerate(top_matrix.itertuples(index=False), start=1):
