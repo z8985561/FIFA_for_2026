@@ -832,7 +832,6 @@ class DashboardDataStore:
         results = fixtures.merge(
             completed[
                 [
-                    "match_no",
                     "home_team",
                     "away_team",
                     "home_score",
@@ -840,7 +839,7 @@ class DashboardDataStore:
                     "completed",
                 ]
             ],
-            on="match_no",
+            on=["home_team", "away_team"],
             how="inner",
             suffixes=("_fixture", "_result"),
         )
@@ -849,8 +848,8 @@ class DashboardDataStore:
             return standings
 
         for row in results.itertuples(index=False):
-            home_team = str(row.home_team_fixture)
-            away_team = str(row.away_team_fixture)
+            home_team = str(row.home_team)
+            away_team = str(row.away_team)
             home_score = int(row.home_score)
             away_score = int(row.away_score)
             group_name = str(row.group_name)
