@@ -47,7 +47,7 @@ function percent(value?: number | null) {
         <span>第 {{ match.match_no }} 场 · {{ match.group_name }}</span>
         <strong>{{ match.home_team_zh }} vs {{ match.away_team_zh }}</strong>
         <small>
-          Top 比分 {{ match.top_scoreline ?? '暂无' }}
+          {{ match.time_bj || '--:--' }} · Top 比分 {{ match.top_scoreline ?? '暂无' }}
           · {{ percent(match.top_scoreline_probability) }}
         </small>
       </button>

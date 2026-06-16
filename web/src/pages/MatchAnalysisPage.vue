@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import PageNav from '@/components/common/PageNav.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import FactorWaterfall from '@/components/match/FactorWaterfall.vue'
+import MatchAnalysisSummary from '@/components/match/MatchAnalysisSummary.vue'
 import MatchCompletenessCard from '@/components/match/MatchCompletenessCard.vue'
 import MatchSwitcher from '@/components/match/MatchSwitcher.vue'
 import MatchTechRadar from '@/components/match/MatchTechRadar.vue'
@@ -225,10 +226,28 @@ function percent(value?: number | null) {
   return value == null ? '暂无' : `${(value * 100).toFixed(1)}%`
 }
 
+const homeCompare = shallowRef<any>(null)
+const awayCompare = shallowRef<any>(null)
+
 function loadPage() {
   detail.run(() => dashboardApi.matchDetail(matchNo.value))
   scorelines.run(() => dashboardApi.matchScorelines(matchNo.value, 10))
 }
+
+async function loadCompare() {
+  const d = detail.data.value
+  if (!d?.match?.home_team || !d?.match?.away_team) return
+  try {
+    const resp = await dashboardApi.compareTeams(d.match.home_team, d.match.away_team)
+    homeCompare.value = resp.team_a
+    awayCompare.value = resp.team_b
+  } catch { /* ignore */ }
+}
+
+// Watch for detail data arrival to load compare
+watch(() => detail.data.value, () => {
+  if (detail.data.value) loadCompare()
+})
 
 function selectMatch(nextMatchNo: number) {
   router.push(`/matches/${nextMatchNo}`)
@@ -305,6 +324,13 @@ watch(matchNo, loadPage)
       :team-a="detail.data.value?.match?.home_team ?? ''"
       :team-b="detail.data.value?.match?.away_team ?? ''"
     /></div>
+
+    <MatchAnalysisSummary
+      v-if="detail.data.value"
+      :detail="detail.data.value"
+      :home-compare="homeCompare"
+      :away-compare="awayCompare"
+    />
 
     <section id="sec-predictions" v-if="detail.data.value" class="section-card">
       <div class="section-title">
