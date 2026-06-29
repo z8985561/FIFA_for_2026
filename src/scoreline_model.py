@@ -43,6 +43,7 @@ DEFAULT_MARKET_TOTAL_GOALS_ANCHOR_WEIGHT = 0.35
 GROUP_OPENER_MISMATCH_ELO_THRESHOLD = 150.0
 GROUP_OPENER_MISMATCH_ELO_MAX = 300.0
 MATCH_ROUND_DRAW_BOOST: dict[int, float] = {1: 1.8, 2: 1.3, 3: 1.0}
+KNOCKOUT_GOAL_RATE_FACTOR = 0.85
 GROUP_OPENER_FAVORITE_ATTACK_LOG_BOOST = 0.045
 SUSPENSION_IMPACT_WEIGHT = 0.75
 PRE_MATCH_CONTEXT_LINEUP_WEIGHT = 0.2
@@ -1440,6 +1441,25 @@ def apply_match_round_draw_adjustment(
     return working
 
 
+
+def apply_knockout_goal_compression(
+    home_goal_rate: float,
+    away_goal_rate: float,
+    stage: object,
+    *,
+    factor: float = KNOCKOUT_GOAL_RATE_FACTOR,
+) -> tuple[float, float]:
+    """Compress expected goals in knockout stages by 15%.
+
+    Knockout matches average ~2.2 goals vs ~2.8 in group stage.
+    This factor aligns the xG baseline with historical knockout data.
+    """
+    stage_str = str(stage)
+    if stage_str in ("Group Stage", ):
+        return home_goal_rate, away_goal_rate
+    return home_goal_rate * factor, away_goal_rate * factor
+
+
 def build_scoreline_analysis(
     fixture_features: pd.DataFrame,
     home_model: object,
@@ -1566,9 +1586,14 @@ def build_scoreline_analysis(
             home_team=str(row.home_team),
             away_team=str(row.away_team),
         )
+        compressed_home, compressed_away = apply_knockout_goal_compression(
+            float(pressure_adjustment["home_expected_goals"]),
+            float(pressure_adjustment["away_expected_goals"]),
+            row.stage,
+        )
         matrix = scoreline_matrix(
-            float(opener_adjustment["home_expected_goals"]),
-            float(opener_adjustment["away_expected_goals"]),
+            compressed_home,
+            compressed_away,
             max_goals=max_goals,
             rho=rho,
         )
