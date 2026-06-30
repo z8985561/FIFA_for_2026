@@ -192,9 +192,20 @@ ef7c3b0 Add group overview and CSV export
 9059a0d Initial project setup and baseline pipeline 即可追踪趋势
 - 网络故障时 Commit 本地保留，后续手动 push
 
+### 集成 Skill
+
+本工作流集成了以下子 Skill，可单独调用：
+
+| Skill | 用途 | 调用 |
+|-------|------|------|
+|  | 体彩赔率录入 |  |
+
 ### 编码注意事项
 - 所有 Python 输出用 `sys.stdout.reconfigure(encoding='utf-8')`
 - 不要直接运行 `.py` 文件，用 `-m src.module_name`
 - 测试必须 148 passed
 - 不要编辑 parquet 文件，用 pipeline 更新
-- 淘汰赛 xG 已内置 ×0.85 压缩，不需要再次手动调整
+- 淘汰赛 xG 已内置 ×0.85 压缩
+- **时区锚定**：所有时间显式声明 `Asia/Shanghai`
+- **性能跳转**：当天无比赛或积分无变化时，跳过 tournament_simulator
+- **数据回滚**：落库带 `fetched_at` UTC 时间戳
