@@ -200,6 +200,14 @@ ef7c3b0 Add group overview and CSV export
 |-------|------|------|
 |  | 体彩赔率录入 |  |
 
+
+#### 7. 推送通知（可选）
+```bash
+.venv\Scripts\python.exe -m src.qq_notify "简报内容"
+```
+- 需要在 `.env` 中配置 `QQ_TARGET_ID`（你的 QQ 号或群号）
+- 依赖 napcat/go-cqhttp 的 HTTP API（默认 http://127.0.0.1:5700）
+
 ### 编码注意事项
 - 所有 Python 输出用 `sys.stdout.reconfigure(encoding='utf-8')`
 - 不要直接运行 `.py` 文件，用 `-m src.module_name`
