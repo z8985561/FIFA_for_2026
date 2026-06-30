@@ -1758,9 +1758,9 @@ def prepare_scoreline_analysis(
                 if mn is not None:
                     score_constraints.append({
                         'match_no': mn,
-                        'home_win_prob': so['home_win_prob'],
-                        'draw_prob': so['draw_prob'],
-                        'away_win_prob': so['away_win_prob'],
+                        'had_home': so['home_win_prob'],
+                        'had_draw': so['draw_prob'],
+                        'had_away': so['away_win_prob'],
                     })
             if score_constraints:
                 score_df = pd.DataFrame(score_constraints)
@@ -1775,6 +1775,24 @@ def prepare_scoreline_analysis(
     market_constraints = build_scoreline_market_constraints(
         sporttery_market_odds_snapshots
     )
+    # Inject user-supplied score odds directly into constraints
+    if not score_odds.empty and not score_df.empty:
+        for _, so_row in score_df.iterrows():
+            mn = int(so_row['match_no'])
+            # Add as a new row in market_constraints
+            new_row = {
+                'match_no': mn,
+                'has_market_outcome_constraint': True,
+                'market_home_win_probability': float(so_row['had_home']),
+                'market_draw_probability': float(so_row['had_draw']),
+                'market_away_win_probability': float(so_row['had_away']),
+                'has_market_total_goals_constraint': False,
+            }
+            # Remove existing row for this match_no if any
+            market_constraints = market_constraints[market_constraints['match_no'] != mn]
+            market_constraints = pd.concat(
+                [market_constraints, pd.DataFrame([new_row])], ignore_index=True
+            )
 
     home_model, away_model, metrics = train_scoreline_models(historical_features)
     analysis = build_scoreline_analysis(
