@@ -22,6 +22,7 @@ from .enhanced_features import (
 from .feature_store import prepare_match_feature_store
 from .lineups_pipeline import TEAM_NAME_ZH, prepare_predicted_lineups
 from .project_paths import (
+    FIXTURES_PATH,
     MATCH_FEATURE_STORE_2026_PATH,
     OFFICIAL_MATCH_RESULTS_2026_PATH,
     MATCHES_PATH,
@@ -30,6 +31,7 @@ from .project_paths import (
     SCORELINE_ANALYSIS_PATH,
     SCORELINE_METRICS_PATH,
     SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH,
+    SPORTTERY_SCORE_ODDS_SNAPSHOTS_PATH,
     WANGYI_SQUAD_STATS_2026_PATH,
     ensure_project_directories,
 )
@@ -1734,6 +1736,40 @@ def prepare_scoreline_analysis(
         if SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH.exists()
         else pd.DataFrame()
     )
+    # Load user-supplied sporttery score odds (from screenshots)
+    score_odds = pd.DataFrame()
+    score_odds_path = SPORTTERY_SCORE_ODDS_SNAPSHOTS_PATH
+    if score_odds_path.exists():
+        score_odds = pd.read_parquet(score_odds_path)
+        # Convert to market constraint format: map team names to match_no via fixtures
+        if not score_odds.empty:
+            fx = pd.read_parquet(FIXTURES_PATH)
+            fx_map = {}
+            from api.team_locale import zh_team_name
+            for _, f in fx.iterrows():
+                if pd.notna(f['home_team']) and f['home_team'] != 'TBD':
+                    key = (str(f['home_team']), str(f['away_team']))
+                    fx_map[key] = int(f['match_no'])
+            score_constraints = []
+            for _, so in score_odds.iterrows():
+                mn = fx_map.get((so['home_team'], so['away_team']))
+                if mn is None:
+                    mn = fx_map.get((so['away_team'], so['home_team']))
+                if mn is not None:
+                    score_constraints.append({
+                        'match_no': mn,
+                        'home_win_prob': so['home_win_prob'],
+                        'draw_prob': so['draw_prob'],
+                        'away_win_prob': so['away_win_prob'],
+                    })
+            if score_constraints:
+                score_df = pd.DataFrame(score_constraints)
+                if sporttery_market_odds_snapshots.empty:
+                    sporttery_market_odds_snapshots = score_df
+                else:
+                    sporttery_market_odds_snapshots = pd.concat(
+                        [sporttery_market_odds_snapshots, score_df], ignore_index=True
+                    )
     historical_features = build_historical_enhanced_features(matches)
     fixture_features = build_2026_enhanced_features(match_features, matches)
     market_constraints = build_scoreline_market_constraints(

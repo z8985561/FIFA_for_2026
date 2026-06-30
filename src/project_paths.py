@@ -38,9 +38,8 @@ HISTORICAL_MARKET_ODDS_SNAPSHOTS_PATH = (
 SCORE_ODDS_SNAPSHOTS_PATH = PROCESSED_DATA_DIR / "score_odds_snapshots.parquet"
 SCORE_ODDS_HISTORY_PATH = PROCESSED_DATA_DIR / "score_odds_history.parquet"
 SCORE_ODDS_COLLECTION_STATUS_PATH = PROCESSED_DATA_DIR / "score_odds_collection_status.parquet"
-SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH = (
-    PROCESSED_DATA_DIR / "sporttery_market_odds_snapshots.parquet"
-)
+SPORTTERY_MARKET_ODDS_SNAPSHOTS_PATH = PROCESSED_DATA_DIR / "sporttery_market_odds_snapshots.parquet"
+SPORTTERY_SCORE_ODDS_SNAPSHOTS_PATH = PROCESSED_DATA_DIR / "sporttery_score_odds_snapshots.parquet"
 SPORTTERY_MARKET_ODDS_HISTORY_PATH = (
     PROCESSED_DATA_DIR / "sporttery_market_odds_history.parquet"
 )
